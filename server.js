@@ -6,7 +6,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// --- ИНТЕРФЕЙС (HTML/CSS/JS) ---
+// --- ИДЕАЛЬНЫЙ МИНИМАЛИСТИЧНЫЙ ИНТЕРФЕЙС ---
 const clientHTML = `
 <!DOCTYPE html>
 <html lang="ru">
@@ -16,74 +16,55 @@ const clientHTML = `
     <title>CAX</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #000; color: #fff; font-family: 'Courier New', Courier, monospace; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        body { background: #000; color: #fff; font-family: 'Inter', sans-serif; height: 100vh; display: flex; flex-direction: column; }
         
-        #chat { flex: 1; overflow-y: auto; padding: 20px; border-bottom: 1px solid #fff; scroll-behavior: smooth; }
-        .msg { margin-bottom: 10px; line-height: 1.4; border-left: 2px solid #333; padding-left: 10px; word-break: break-all; }
-        .msg .nick { color: #888; font-weight: bold; margin-right: 8px; }
+        /* Список сообщений */
+        #chat { flex: 1; overflow-y: auto; padding: 30px; display: flex; flex-direction: column; gap: 15px; }
         
-        #input-area { display: flex; padding: 15px; background: #000; }
-        input { flex: 1; background: #000; border: 1px solid #fff; color: #fff; padding: 10px; font-family: inherit; outline: none; }
-        button { background: #fff; color: #000; border: none; padding: 0 20px; cursor: pointer; font-weight: bold; font-family: inherit; margin-left: 10px; }
-        button:active { background: #888; }
+        .msg { max-width: 80%; animation: fadeIn 0.2s ease; }
+        .msg .n { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; color: #444; margin-bottom: 4px; }
+        .msg .t { font-size: 1rem; line-height: 1.5; border-left: 1px solid #fff; padding-left: 15px; }
 
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-track { background: #000; }
-        ::-webkit-scrollbar-thumb { background: #fff; }
+        /* Поле ввода */
+        #ui { padding: 30px; border-top: 1px solid #1a1a1a; display: flex; gap: 20px; }
+        input { flex: 1; background: transparent; border: none; color: #fff; font-size: 1rem; outline: none; font-family: inherit; }
+        button { background: none; border: 1px solid #fff; color: #fff; padding: 10px 25px; cursor: pointer; transition: 0.2s; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px; }
+        button:hover { background: #fff; color: #000; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        ::-webkit-scrollbar { width: 0px; } /* Скрываем скроллбар для чистоты */
     </style>
 </head>
 <body>
     <div id="chat"></div>
-    <form id="input-area">
-        <input type="text" id="m" autocomplete="off" placeholder="СООБЩЕНИЕ..." maxlength="500" />
-        <button type="submit">ОТПРАВИТЬ</button>
+    <form id="ui">
+        <input type="text" id="m" autocomplete="off" placeholder="WRITE..." maxlength="500" />
+        <button type="submit">SEND</button>
     </form>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
         const chat = document.getElementById('chat');
-        const form = document.getElementById('input-area');
+        const form = document.getElementById('ui');
         const input = document.getElementById('m');
 
-        // Идентификация
-        let nick = localStorage.getItem('cax_nick');
-        if (!nick) {
-            nick = prompt('ТВОЙ НИК:', 'ANON_' + Math.floor(Math.random() * 1000));
-            localStorage.setItem('cax_nick', nick || 'ANON');
-        }
-
-        // Анти-спам
-        let lastSend = 0;
+        let nick = localStorage.getItem('cax_n') || prompt('NICKNAME:') || 'USER';
+        localStorage.setItem('cax_n', nick);
 
         form.onsubmit = (e) => {
             e.preventDefault();
-            const now = Date.now();
-            if (now - lastSend < 800) return; // 0.8s задержка
-            
             if (input.value.trim()) {
-                socket.emit('chat message', { nick, text: input.value });
+                socket.emit('m', { n: nick, t: input.value });
                 input.value = '';
-                lastSend = now;
             }
         };
 
-        socket.on('chat message', (data) => {
-            const div = document.createElement('div');
-            div.className = 'msg';
-            div.innerHTML = \`<span class="nick">\${data.nick}:</span>\${data.text}\`;
-            chat.appendChild(div);
-            chat.scrollTop = chat.scrollHeight;
-        });
-
-        // Системные уведомления
-        socket.on('sys', (txt) => {
-            const div = document.createElement('div');
-            div.style.color = '#555';
-            div.style.fontSize = '0.8em';
-            div.style.margin = '5px 0';
-            div.innerText = '>> ' + txt;
-            chat.appendChild(div);
+        socket.on('m', (d) => {
+            const el = document.createElement('div');
+            el.className = 'msg';
+            el.innerHTML = \`<div class="n">\${d.n}</div><div class="t">\${d.t}</div>\`;
+            chat.appendChild(el);
             chat.scrollTop = chat.scrollHeight;
         });
     </script>
@@ -91,32 +72,19 @@ const clientHTML = `
 </html>
 `;
 
-// --- ЛОГИКА СЕРВЕРА ---
-
-app.get('/', (req, res) => {
-    res.send(clientHTML);
-});
+// --- ЛОГИКА (БЕЗ ЛИШНЕГО) ---
+app.get('/', (req, res) => res.send(clientHTML));
 
 io.on('connection', (socket) => {
-    socket.emit('sys', 'СОЕДИНЕНИЕ УСТАНОВЛЕНО');
-
-    socket.on('chat message', (data) => {
-        // Валидация на стороне сервера
-        if (data.text && data.text.length <= 500) {
-            const cleanData = {
-                nick: String(data.nick).substring(0, 20).replace(/<[^>]*>?/gm, ''),
-                text: String(data.text).replace(/<[^>]*>?/gm, '')
-            };
-            io.emit('chat message', cleanData);
+    socket.on('m', (data) => {
+        if (data.t && data.t.length <= 500) {
+            io.emit('m', {
+                n: String(data.n).substring(0, 15).replace(/<[^>]*>?/gm, ''),
+                t: String(data.t).replace(/<[^>]*>?/gm, '')
+            });
         }
-    });
-
-    socket.on('disconnect', () => {
-        console.log('User disconnected');
     });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`CAX RUNNING ON PORT ${PORT}`);
-});
+server.listen(PORT, () => console.log('READY'));
