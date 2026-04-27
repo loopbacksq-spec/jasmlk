@@ -6,7 +6,8 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-const clientHTML = `
+// --- ИНТЕРФЕЙС (ВШИТ В ПАМЯТЬ) ---
+const UI = `
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -16,114 +17,94 @@ const clientHTML = `
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { background: #000; color: #fff; font-family: 'Courier New', monospace; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
-        
-        /* HEADER */
-        #hdr { padding: 10px 15px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; font-size: 10px; letter-spacing: 1px; }
-        #st { color: #0f0; } .off { color: #f00 !important; }
-
-        /* CHAT AREA */
-        #ch { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth; }
-        .m { max-width: 90%; animation: f 0.1s ease; border-left: 1px solid #333; padding-left: 10px; }
-        .m.priv { border-left-color: #fff; background: #111; padding: 5px 10px; }
-        .n { font-size: 10px; color: #666; margin-bottom: 2px; display: flex; justify-content: space-between; }
-        .t { font-size: 14px; line-height: 1.4; word-wrap: break-word; }
-        audio { filter: invert(1); height: 30px; margin-top: 5px; max-width: 100%; }
-
-        /* UI */
-        #ui { padding: 10px; border-top: 1px solid #222; display: flex; gap: 8px; align-items: center; background: #000; }
-        input { flex: 1; background: #111; border: 1px solid #333; color: #fff; padding: 12px; border-radius: 0; outline: none; font-family: inherit; font-size: 16px; }
-        .btn { background: #fff; color: #000; border: none; padding: 12px 15px; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 11px; }
-        #rec { background: #222; color: #fff; user-select: none; touch-action: none; }
-        #rec.active { background: #f00; }
-
-        @keyframes f { from { opacity: 0; transform: translateX(-5px); } to { opacity: 1; transform: translateX(0); } }
+        #h { padding: 10px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; font-size: 10px; opacity: 0.6; }
+        #s { color: #0f0; }
+        #ch { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .m { border-left: 1px solid #444; padding-left: 10px; animation: f 0.1s ease; }
+        .m.p { border-left-color: #fff; background: #111; }
+        .n { font-size: 10px; color: #666; margin-bottom: 2px; text-transform: uppercase; }
+        .t { font-size: 15px; line-height: 1.4; }
+        audio { filter: invert(1); height: 30px; margin-top: 5px; width: 100%; }
+        #u { padding: 10px; border-top: 1px solid #222; display: flex; gap: 5px; background: #000; }
+        input { flex: 1; background: #111; border: 1px solid #333; color: #fff; padding: 12px; outline: none; font-family: inherit; font-size: 16px; }
+        .b { background: #fff; color: #000; border: none; padding: 12px; font-weight: bold; cursor: pointer; font-size: 12px; }
+        #r.a { background: #f00; color: #fff; }
+        @keyframes f { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
-    <div id="hdr">
-        <div>CAX_CORE.v2</div>
-        <div>STATUS: <span id="st">ONLINE</span> | PING: <span id="pg">0</span>ms</div>
-    </div>
+    <div id="h"><div>CAX_v2</div><div>PING: <span id="pg">0</span>ms | <span id="s">ONLINE</span></div></div>
     <div id="ch"></div>
-    <form id="ui">
-        <input type="text" id="i" placeholder="CMD OR MSG..." autocomplete="off">
-        <div id="rec" class="btn">VOICE</div>
-        <button type="submit" class="btn">SEND</button>
+    <form id="u">
+        <input type="text" id="i" placeholder="CMD / MSG..." autocomplete="off">
+        <div id="r" class="b">VOICE</div>
+        <button type="submit" class="b">SEND</button>
     </form>
-
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io();
-        const ch = document.getElementById('ch'), i = document.getElementById('i'), ui = document.getElementById('ui'), recBtn = document.getElementById('rec');
+        const socket = io(), ch = document.getElementById('ch'), i = document.getElementById('i'), u = document.getElementById('u'), r = document.getElementById('r');
         let nick = localStorage.getItem('nx') || prompt('NICK:') || 'USER';
         localStorage.setItem('nx', nick);
 
-        // Session Timer
-        let lastAct = Date.now();
-        setInterval(() => { if (Date.now() - lastAct > 300000) { localStorage.clear(); location.reload(); } }, 10000);
-        window.onfocus = () => { lastAct = Date.now(); };
+        // Session
+        let lt = Date.now();
+        setInterval(() => { if (Date.now() - lt > 300000) { localStorage.clear(); location.reload(); } }, 10000);
+        window.onfocus = () => lt = Date.now();
 
-        // Pinger
-        setInterval(() => { const start = Date.now(); socket.emit('p', () => { document.getElementById('pg').innerText = Date.now() - start; }); }, 3000);
-        socket.on('disconnect', () => document.getElementById('st').classList.add('off'));
+        // Ping
+        setInterval(() => { const s = Date.now(); socket.emit('p', () => { document.getElementById('pg').innerText = Date.now() - s; }); }, 2000);
 
-        function addM(d, priv = false) {
+        function add(d, p = false) {
             const div = document.createElement('div');
-            div.className = 'm' + (priv ? ' priv' : '');
-            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            let content = d.t ? \`<div class="t">\${d.t}</div>\` : \`<audio src="\${d.a}" controls></audio>\`;
-            div.innerHTML = \`<div class="n"><span>\${d.n.toUpperCase()} \${priv ? '[PRIVATE]' : ''}</span> <span>\${time}</span></div>\${content}\`;
+            div.className = 'm' + (p ? ' p' : '');
+            const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+            let c = d.t ? \`<div class="t">\${d.t}</div>\` : \`<audio src="\${d.a}" controls></audio>\`;
+            div.innerHTML = \`<div class="n">\${d.n} \${p ? '[PRIV]' : ''} | \${time}</div>\${c}\`;
             ch.appendChild(div);
             ch.scrollTop = ch.scrollHeight;
         }
 
-        ui.onsubmit = (e) => {
+        u.onsubmit = (e) => {
             e.preventDefault();
             const v = i.value.trim();
             if (!v) return;
-
             if (v.startsWith('/')) {
-                const parts = v.split(' ');
-                const cmd = parts[0];
-                if (cmd === '/clear') ch.innerHTML = '';
-                else if (cmd === '/new' && parts[1]) { nick = parts[1]; localStorage.setItem('nx', nick); }
-                else if (cmd === '/send' && parts[1]) {
-                    const target = parts[1];
-                    const msg = parts.slice(2).join(' ');
-                    socket.emit('m', { n: nick, t: msg, to: target });
-                    addM({ n: \`TO: \${target}\`, t: msg }, true);
+                const p = v.split(' ');
+                if (p[0] === '/clear') ch.innerHTML = '';
+                if (p[0] === '/new' && p[1]) { nick = p[1]; localStorage.setItem('nx', nick); }
+                if (p[0] === '/send' && p[1]) {
+                    const msg = p.slice(2).join(' ');
+                    socket.emit('m', { n: nick, t: msg, to: p[1] });
+                    add({ n: 'TO: ' + p[1], t: msg }, true);
                 }
-                i.value = '';
-                return;
+                i.value = ''; return;
             }
-
             socket.emit('m', { n: nick, t: v });
             i.value = '';
         };
 
-        socket.on('m', (d) => addM(d, d.priv));
+        socket.on('m', (d) => {
+            if (d.to && d.to !== nick) return; // Простой фильтр лички
+            add(d, !!d.to);
+        });
 
-        // VOICE REC
         let rc;
-        recBtn.onpointerdown = async (e) => {
+        r.onpointerdown = async (e) => {
             e.preventDefault();
             const s = await navigator.mediaDevices.getUserMedia({ audio: true });
-            rc = new MediaRecorder(s);
-            const chunks = [];
-            rc.ondataavailable = e => chunks.push(e.data);
+            rc = new MediaRecorder(s); const ck = [];
+            rc.ondataavailable = e => ck.push(e.data);
             rc.onstop = () => {
-                const blob = new Blob(chunks, { type: 'audio/ogg; codecs=opus' });
-                const reader = new FileReader();
-                reader.onloadend = () => socket.emit('m', { n: nick, a: reader.result });
-                reader.readAsDataURL(blob);
+                const b = new Blob(ck, { type: 'audio/ogg' });
+                const rd = new FileReader();
+                rd.onloadend = () => socket.emit('m', { n: nick, a: rd.result });
+                rd.readAsDataURL(b);
                 s.getTracks().forEach(t => t.stop());
             };
-            rc.start();
-            recBtn.classList.add('active');
+            rc.start(); r.classList.add('a');
         };
-        recBtn.onpointerup = () => { if(rc) rc.stop(); recBtn.classList.remove('active'); };
+        r.onpointerup = () => { if(rc) rc.stop(); r.classList.remove('a'); };
 
-        // Fix mobile keyboard
         if (window.visualViewport) {
             window.visualViewport.addEventListener('resize', () => {
                 document.body.style.height = window.visualViewport.height + 'px';
@@ -135,34 +116,28 @@ const clientHTML = `
 </html>
 `;
 
-io.on('connection', (socket) => {
-    socket.join(socket.handshake.query.nick || 'anon'); // Fallback
-    
-    socket.on('p', (cb) => cb());
+// --- ЛОГИКА СЕРВЕРА (БЕЗ CANNOT GET /) ---
 
-    socket.on('m', (d) => {
-        const clean = { n: d.n.substring(0,15), t: d.t, a: d.a, priv: !!d.to };
-        if (d.to) {
-            // Личка: ищем по нику (в данном примере упрощено до broadcast с пометкой, 
-            // для реального привата нужно хранить мапу ник -> socket.id)
-            io.emit('m_priv', { ...clean, target: d.to }); 
-        } else {
-            io.emit('m', clean);
-        }
-    });
+app.get('/', (req, res) => {
+    res.send(UI); // Отдаем интерфейс на главном маршруте
 });
 
-// Фикс лички на бэкенде
 io.on('connection', (socket) => {
+    socket.on('p', (cb) => { if(typeof cb === 'function') cb(); });
+    
     socket.on('m', (d) => {
-        if (d.to) {
-            // Эмит конкретному сокету был бы сложнее, делаем фильтр на клиенте или простую логику:
-            socket.broadcast.emit('m', { ...d, priv: true, filter: d.to });
-        } else {
-            io.emit('m', d);
-        }
+        // Очистка и рассылка
+        const payload = {
+            n: String(d.n || 'USER').substring(0, 15),
+            t: d.t ? String(d.t).replace(/<[^>]*>?/gm, '') : null,
+            a: d.a || null,
+            to: d.to || null
+        };
+        io.emit('m', payload);
     });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log('CORE READY'));
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`CORE READY ON PORT ${PORT}`);
+});
