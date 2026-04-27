@@ -9,30 +9,32 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
-const RENDER_URL = `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`; // Ссылка на ваш билд
+const RENDER_URL = `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`;
 
-// Раздача статических файлов
-app.use(express.static(path.join(__dirname, 'public')));
+// ОТДАЕМ ФАЙЛЫ ИЗ КОРНЯ
+app.use(express.static(__dirname));
 
-// Защита от спама: лимит сообщений (1 сообщение в секунду на сокет)
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 const messageLimits = new Map();
 
 io.on('connection', (socket) => {
+    console.log('User connected: ' + socket.id);
+
     socket.on('chat message', (data) => {
         const now = Date.now();
         const lastMessageTime = messageLimits.get(socket.id) || 0;
 
-        if (now - lastMessageTime < 1000) {
-            return; // Игнорируем слишком частые сообщения
-        }
+        if (now - lastMessageTime < 800) return; // Анти-спам
 
         messageLimits.set(socket.id, now);
 
-        // Рассылка всем, кроме отправителя (оптимизация трафика)
         if (data.user && data.text) {
             io.emit('chat message', {
-                user: data.user.substring(0, 20), // Лимит на длину ника
-                text: data.text.substring(0, 500) // Лимит на длину сообщения
+                user: String(data.user).substring(0, 20),
+                text: String(data.text).substring(0, 500)
             });
         }
     });
@@ -42,13 +44,13 @@ io.on('connection', (socket) => {
     });
 });
 
-// Авто-пингер для Render (чтобы сервер не спал)
+// Авто-пингер
 setInterval(() => {
     if (process.env.RENDER_EXTERNAL_HOSTNAME) {
-        axios.get(RENDER_URL).catch(() => console.log("Self-pinging..."));
+        axios.get(RENDER_URL).catch(() => {});
     }
-}, 840000); // Каждые 14 минут
+}, 800000);
 
 server.listen(PORT, () => {
-    console.log(`CAX server running on port ${PORT}`);
+    console.log(`CAX ONLINE ON PORT ${PORT}`);
 });
