@@ -2,35 +2,56 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
-const axios = require('axios');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
-const RENDER_URL = `https://${process.env.RENDER_EXTERNAL_HOSTNAME}`;
 
-// ОТДАЕМ ФАЙЛЫ ИЗ КОРНЯ
-app.use(express.static(__dirname));
+// Функция для поиска файла по всем возможным папкам
+function findIndexFile() {
+    const locations = [
+        path.join(__dirname, 'index.html'),
+        path.join(__dirname, 'public', 'index.html'),
+        path.join(process.cwd(), 'index.html'),
+        path.join(process.cwd(), 'public', 'index.html')
+    ];
+    
+    for (let loc of locations) {
+        if (fs.existsSync(loc)) {
+            console.log('✅ Нашел index.html по пути:', loc);
+            return loc;
+        }
+    }
+    return null;
+}
 
+// Главная страница
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    const indexPath = findIndexFile();
+    if (indexPath) {
+        res.sendFile(indexPath);
+    } else {
+        // Если файл не найден, сервер выведет список того, что он видит
+        const files = fs.readdirSync(__dirname);
+        res.status(404).send(`
+            <h1>CAX Error</h1>
+            <p>Файл index.html не найден в репозитории.</p>
+            <p>Файлы в корне сервера: ${files.join(', ')}</p>
+            <p>Убедись, что на GitHub файл называется именно <b>index.html</b> (маленькими буквами)!</p>
+        `);
+    }
 });
 
-const messageLimits = new Map();
+// Раздача статики из всех возможных дыр
+app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, 'public')));
 
+// Логика чата
 io.on('connection', (socket) => {
-    console.log('User connected: ' + socket.id);
-
     socket.on('chat message', (data) => {
-        const now = Date.now();
-        const lastMessageTime = messageLimits.get(socket.id) || 0;
-
-        if (now - lastMessageTime < 800) return; // Анти-спам
-
-        messageLimits.set(socket.id, now);
-
         if (data.user && data.text) {
             io.emit('chat message', {
                 user: String(data.user).substring(0, 20),
@@ -38,19 +59,14 @@ io.on('connection', (socket) => {
             });
         }
     });
-
-    socket.on('disconnect', () => {
-        messageLimits.delete(socket.id);
-    });
 });
 
-// Авто-пингер
-setInterval(() => {
-    if (process.env.RENDER_EXTERNAL_HOSTNAME) {
-        axios.get(RENDER_URL).catch(() => {});
-    }
-}, 800000);
-
 server.listen(PORT, () => {
-    console.log(`CAX ONLINE ON PORT ${PORT}`);
+    console.log(`
+    ====================================
+    🚀 CAX SERVER IS LIVE!
+    ПОРТ: ${PORT}
+    НИКНЕЙМ: Leym-Core-v1
+    ====================================
+    `);
 });
