@@ -3,77 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Block Blast Ultimate</title>
-    <script src="/socket.io/socket.io.js"></script>
+    <title>BLOCK BLAST PRO</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        :root { --glass: rgba(255, 255, 255, 0.1); --border: rgba(255, 255, 255, 0.2); }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { 
-            margin: 0; padding: 0; min-height: 100vh; overflow: hidden;
-            background: #0f0c29; color: white; font-family: sans-serif;
-            display: flex; justify-content: center; align-items: center;
-        }
-
-        /* Rainbow Start */
+        :root { --glass: rgba(255, 255, 255, 0.1); --blue: #3498db; }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: sans-serif; background: #000; color: #fff; }
+        
+        /* Исправленная заставка */
         #splash {
             position: fixed; inset: 0; z-index: 9999;
-            background: linear-gradient(45deg, red, orange, yellow, green, blue, purple);
-            background-size: 400%; animation: rainbow 5s linear infinite;
-            display: flex; justify-content: center; align-items: center;
+            background: linear-gradient(45deg, #ff0000, #00ff00, #0000ff, #ff00ff);
+            background-size: 400% 400%; animation: rainbow 5s infinite;
+            display: flex; justify-content: center; align-items: center; transition: opacity 0.8s;
         }
-        @keyframes rainbow { 0% {background-position: 0% 50%;} 100% {background-position: 400% 50%;} }
-        #splash h1 { font-size: 4rem; animation: zoom 2s ease-in-out; }
-        @keyframes zoom { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-
-        /* Main UI */
-        #app { 
-            width: 100%; max-width: 450px; height: 95vh; 
-            background: var(--glass); backdrop-filter: blur(20px);
-            border: 1px solid var(--border); border-radius: 30px;
-            display: none; flex-direction: column; padding: 20px;
-        }
-
-        .header { display: flex; justify-content: space-around; padding: 15px; background: rgba(0,0,0,0.4); border-radius: 20px; }
-        .elo-val { font-size: 24px; font-weight: bold; }
+        @keyframes rainbow { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
         
-        /* Grid */
+        #app { display: none; flex-direction: column; height: 100vh; padding: 15px; background: #0f0c29; }
+        .header { display: flex; justify-content: space-around; background: var(--glass); padding: 15px; border-radius: 15px; }
+        .elo-val { font-size: 22px; font-weight: bold; }
+        
+        /* Сетка игры */
         #grid { 
             display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px;
-            width: 320px; height: 320px; background: rgba(255,255,255,0.05);
-            margin: 20px auto; padding: 5px; border-radius: 10px;
+            width: 90vw; height: 90vw; max-width: 350px; max-height: 350px;
+            margin: 20px auto; background: rgba(255,255,255,0.05); padding: 5px; border-radius: 10px;
         }
         .cell { background: rgba(255,255,255,0.1); border-radius: 4px; aspect-ratio: 1; }
-        .cell.filled { background: #3498db; box-shadow: inset 0 0 10px white; }
-        .cell.preview { background: rgba(52, 152, 219, 0.4); }
+        .cell.filled { background: var(--blue); box-shadow: inset 0 0 10px #fff; }
 
-        /* Shapes */
-        #hand { display: flex; justify-content: space-around; height: 120px; margin-top: 20px; }
-        .shape { cursor: grab; transform: scale(0.7); }
-        .shape-row { display: flex; }
-        .s-cell { width: 30px; height: 30px; border-radius: 4px; }
-        .s-cell.on { background: #3498db; border: 1px solid rgba(255,255,255,0.5); }
+        /* Фигуры */
+        #hand { display: flex; justify-content: space-around; min-height: 100px; margin-top: 10px; }
+        .shape { cursor: grab; transition: transform 0.2s; touch-action: none; }
+        .s-row { display: flex; }
+        .s-cell { width: 25px; height: 25px; border-radius: 3px; }
+        .s-cell.on { background: var(--blue); border: 1px solid #fff; }
 
-        /* Buttons */
-        .btn { 
-            width: 100%; padding: 15px; border-radius: 15px; border: none;
-            font-size: 18px; font-weight: bold; cursor: pointer; margin: 10px 0;
-        }
-        .btn-main { background: #2ecc71; color: white; }
-        .btn-surrender { background: #e74c3c; color: white; }
-
-        /* Chat */
-        #chat { flex-grow: 1; background: rgba(0,0,0,0.3); border-radius: 15px; padding: 10px; margin-top: 10px; display: flex; flex-direction: column; }
-        #messages { flex-grow: 1; overflow-y: auto; font-size: 14px; }
-        #chat input { background: transparent; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 10px; }
-
-        /* Search Overlay */
-        #search { 
-            position: absolute; inset: 0; background: rgba(0,0,0,0.9); 
-            display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100;
-        }
-
-        /* ELO Colors */
-        .green { color: #2ecc71; } .red { color: #e74c3c; } .purple { color: #9b59b6; } .black { color: #111; text-shadow: 0 0 5px white; }
+        .btn { width: 100%; padding: 15px; border-radius: 12px; border: none; font-weight: bold; margin: 10px 0; cursor: pointer; }
+        .btn-play { background: #2ecc71; color: #fff; font-size: 20px; }
+        
+        #chat { flex-grow: 1; background: rgba(0,0,0,0.3); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; overflow: hidden; }
+        #msgs { flex-grow: 1; overflow-y: auto; font-size: 13px; margin-bottom: 5px; }
+        #chat input { background: rgba(255,255,255,0.1); border: 1px solid var(--glass); color: #fff; padding: 8px; border-radius: 5px; }
     </style>
 </head>
 <body>
@@ -82,253 +52,159 @@
 
 <div id="app">
     <div class="header">
-        <div>ELO: <span id="elo" class="elo-val">0</span></div>
-        <div>LVL: <span id="lvl" class="elo-val">1</span></div>
+        <div>ELO: <span id="elo">0</span></div>
+        <div id="lvl-box">LVL: <span id="lvl">1</span></div>
     </div>
 
-    <div id="menu-screen">
-        <div style="height: 200px; display: flex; align-items: center; justify-content: center; font-size: 40px; font-weight: 900;">BLOCK BLAST</div>
-        <button class="btn btn-main" onclick="showModes()">ИГРАТЬ</button>
+    <div id="menu">
+        <h1 style="text-align:center; letter-spacing: 2px;">BLOCK BLAST</h1>
+        <button class="btn btn-play" onclick="startMode()">ИГРАТЬ</button>
         <div id="chat">
-            <div id="messages"></div>
-            <input type="text" id="msg-in" placeholder="Сообщение всем...">
+            <div id="msgs"></div>
+            <input type="text" id="minput" placeholder="Напиши что-нибудь...">
         </div>
     </div>
 
-    <div id="game-screen" style="display:none;">
-        <div id="online-stats" style="display:none; justify-content: space-between; padding: 5px;">
-            <span>Вы: <b id="my-score">0</b></span>
-            <span id="timer">05:00</span>
-            <span>Враг: <b id="opp-score">0</b></span>
-        </div>
-        <div id="offline-task" style="text-align: center; color: #f1c40f; margin: 5px;">Цель: <span id="target">0</span></div>
+    <div id="game" style="display:none">
+        <div id="info" style="text-align:center; color: #f1c40f; margin-bottom: 10px;">Счёт: <span id="score">0</span> / Цель: <span id="target">0</span></div>
         <div id="grid"></div>
         <div id="hand"></div>
-        <button class="btn btn-surrender" onclick="backToMenu()">СДАТЬСЯ</button>
+        <button class="btn" style="background:#e74c3c; color:#fff" onclick="location.reload()">СДАТЬСЯ</button>
     </div>
-</div>
-
-<div id="search">
-    <div style="width:50px; height:50px; border:5px solid #3498db; border-top-color:transparent; border-radius:50%; animation: rainbow 1s linear infinite;"></div>
-    <p>Ищем достойного соперника...</p>
 </div>
 
 <script>
-    const socket = io();
-    let myData = {
-        nick: localStorage.getItem('bb_nick') || '',
-        elo: parseInt(localStorage.getItem('bb_elo')) || 0,
-        lvl: 1
-    };
-
-    // Splash Logic
+    // Принудительное скрытие заставки через 3 секунды, даже если сокеты не подгрузились
     setTimeout(() => {
-        document.getElementById('splash').style.display = 'none';
-        document.getElementById('app').style.display = 'flex';
-        if(!myData.nick) {
-            myData.nick = prompt("Твой никнейм:") || "Игрок";
-            localStorage.setItem('bb_nick', myData.nick);
-        }
-        updateUI();
+        document.getElementById('splash').style.opacity = '0';
+        setTimeout(() => {
+            document.getElementById('splash').style.display = 'none';
+            document.getElementById('app').style.display = 'flex';
+        }, 800);
     }, 3000);
 
-    function updateUI() {
-        myData.lvl = Math.floor(myData.elo / 10) + 1;
-        const eEl = document.getElementById('elo');
-        const lEl = document.getElementById('lvl');
-        eEl.innerText = myData.elo;
-        lEl.innerText = myData.lvl;
-        
-        lEl.className = 'elo-val';
-        if(myData.lvl > 500) lEl.classList.add('black');
-        else if(myData.lvl > 150) lEl.classList.add('purple');
-        else if(myData.lvl > 50) lEl.classList.add('red');
-        else lEl.classList.add('green');
-    }
+    const socket = typeof io !== 'undefined' ? io() : null;
+    let elo = parseInt(localStorage.getItem('bb_elo')) || 0;
+    let nick = localStorage.getItem('bb_nick') || prompt("Никнейм:") || "User";
+    localStorage.setItem('bb_nick', nick);
 
-    // --- CHAT LOGIC ---
-    const msgIn = document.getElementById('msg-in');
-    msgIn.onkeypress = (e) => {
-        if(e.key === 'Enter' && msgIn.value.trim()){
-            socket.emit('send_msg', { nick: myData.nick, text: msgIn.value });
-            msgIn.value = '';
+    document.getElementById('elo').innerText = elo;
+    const lvl = Math.floor(elo/10) + 1;
+    document.getElementById('lvl').innerText = lvl;
+    if(lvl > 150) document.getElementById('lvl').style.color = 'red';
+
+    // Чат
+    const minput = document.getElementById('minput');
+    minput.onkeypress = (e) => {
+        if(e.key === 'Enter' && socket) {
+            socket.emit('send_msg', { nick, text: minput.value });
+            minput.value = '';
         }
     };
+    if(socket) {
+        socket.on('broadcast_msg', d => {
+            const m = document.getElementById('msgs');
+            m.innerHTML += `<div><b>${d.nick}:</b> ${d.text}</div>`;
+            m.scrollTop = m.scrollHeight;
+        });
+    }
 
-    socket.on('broadcast_msg', (data) => {
-        const box = document.getElementById('messages');
-        const div = document.createElement('div');
-        div.innerHTML = `<b>${data.nick}:</b> ${data.text}`;
-        box.appendChild(div);
-        if(box.childNodes.length > 5) box.removeChild(box.firstChild);
-        box.scrollTop = box.scrollHeight;
-    });
-
-    // --- GAME MECHANICS ---
+    // Игра
     let board = Array(8).fill().map(() => Array(8).fill(0));
     let score = 0;
-    let isOnline = false;
-    let currentRoom = '';
 
-    function showModes() {
-        const m = confirm("ОК - Онлайн, Отмена - Оффлайн");
-        if(m) startMatchmaking(); else startOffline();
+    function startMode() {
+        document.getElementById('menu').style.display = 'none';
+        document.getElementById('game').style.display = 'block';
+        document.getElementById('target').innerText = 500 + (lvl * 100);
+        renderBoard();
+        spawn();
     }
 
-    function startOffline() {
-        document.getElementById('menu-screen').style.display = 'none';
-        document.getElementById('game-screen').style.display = 'flex';
-        document.getElementById('offline-task').style.display = 'block';
-        document.getElementById('online-stats').style.display = 'none';
-        
-        let target = 500 + (myData.lvl * 100);
-        document.getElementById('target').innerText = target;
-        resetGame();
-    }
-
-    function startMatchmaking() {
-        document.getElementById('search').style.display = 'flex';
-        socket.emit('find_match', { nick: myData.nick, elo: myData.elo });
-    }
-
-    socket.on('match_start', (data) => {
-        document.getElementById('search').style.display = 'none';
-        document.getElementById('menu-screen').style.display = 'none';
-        document.getElementById('game-screen').style.display = 'flex';
-        document.getElementById('offline-task').style.display = 'none';
-        document.getElementById('online-stats').style.display = 'flex';
-        
-        isOnline = true;
-        currentRoom = data.room;
-        resetGame();
-        startTimer();
-    });
-
-    function resetGame() {
-        board = Array(8).fill().map(() => Array(8).fill(0));
-        score = 0;
-        updateBoard();
-        spawnShapes();
-    }
-
-    function updateBoard() {
-        const grid = document.getElementById('grid');
-        grid.innerHTML = '';
+    function renderBoard() {
+        const g = document.getElementById('grid');
+        g.innerHTML = '';
         for(let r=0; r<8; r++) {
             for(let c=0; c<8; c++) {
-                const cell = document.createElement('div');
-                cell.className = 'cell' + (board[r][c] ? ' filled' : '');
-                grid.appendChild(cell);
+                const d = document.createElement('div');
+                d.className = 'cell' + (board[r][c] ? ' filled' : '');
+                // Клик-установка для мобилок (упрощаем drag)
+                d.onclick = () => tryPlaceActive(r, c);
+                g.appendChild(d);
             }
         }
-        if(isOnline) {
-            document.getElementById('my-score').innerText = score;
-            socket.emit('update_score', { room: currentRoom, score: score });
-        }
     }
 
-    socket.on('opp_score', (s) => {
-        document.getElementById('opp-score').innerText = s;
-    });
+    const SHAPES = [[[1,1],[1,1]], [[1,1,1]], [[1],[1],[1]], [[1]]];
+    let activeShape = null;
 
-    // --- SHAPES ---
-    const SHAPES = [
-        [[1,1],[1,1]], [[1,1,1]], [[1],[1],[1]], [[1,0],[1,1]], [[1]]
-    ];
-
-    function spawnShapes() {
-        const hand = document.getElementById('hand');
-        hand.innerHTML = '';
+    function spawn() {
+        const h = document.getElementById('hand');
+        h.innerHTML = '';
         for(let i=0; i<3; i++) {
-            const shape = SHAPES[Math.floor(Math.random()*SHAPES.length)];
-            const div = document.createElement('div');
-            div.className = 'shape';
-            div.draggable = true;
-            shape.forEach(row => {
-                const rDiv = document.createElement('div');
-                rDiv.className = 'shape-row';
+            const s = SHAPES[Math.floor(Math.random()*SHAPES.length)];
+            const d = document.createElement('div');
+            d.className = 'shape';
+            s.forEach(row => {
+                const rd = document.createElement('div');
+                rd.className = 's-row';
                 row.forEach(c => {
-                    const cDiv = document.createElement('div');
-                    cDiv.className = 's-cell' + (c ? ' on' : '');
-                    rDiv.appendChild(cDiv);
+                    const cd = document.createElement('div');
+                    cd.className = 's-cell' + (c?' on':'');
+                    rd.appendChild(cd);
                 });
-                div.appendChild(rDiv);
+                d.appendChild(rd);
             });
-            
-            div.ondragend = (e) => {
-                const rect = document.getElementById('grid').getBoundingClientRect();
-                const x = Math.floor((e.clientX - rect.left) / (rect.width/8));
-                const y = Math.floor((e.clientY - rect.top) / (rect.height/8));
-                if(canPlace(shape, y, x)) {
-                    place(shape, y, x);
-                    div.style.visibility = 'hidden';
-                    if([...hand.childNodes].every(n => n.style.visibility === 'hidden')) spawnShapes();
-                }
+            d.onclick = () => {
+                activeShape = s;
+                document.querySelectorAll('.shape').forEach(x => x.style.border = "none");
+                d.style.border = "2px solid #fff";
             };
-            hand.appendChild(div);
+            h.appendChild(d);
         }
     }
 
-    function canPlace(shape, row, col) {
-        for(let r=0; r<shape.length; r++) {
-            for(let c=0; c<shape[r].length; c++) {
-                if(shape[r][c]) {
-                    if(row+r < 0 || row+r >= 8 || col+c < 0 || col+c >= 8 || board[row+r][col+c]) return false;
+    function tryPlaceActive(r, c) {
+        if(!activeShape) return;
+        if(canPlace(activeShape, r, c)) {
+            place(activeShape, r, c);
+            activeShape = null;
+            // Если все фигуры ушли - спавним новые (в реальной игре нужна проверка)
+            // Для теста - просто обновим руку если она пустая
+        }
+    }
+
+    function canPlace(s, r, c) {
+        for(let y=0; y<s.length; y++) {
+            for(let x=0; x<s[y].length; x++) {
+                if(s[y][x]) {
+                    if(r+y >= 8 || c+x >= 8 || board[r+y][c+x]) return false;
                 }
             }
         }
         return true;
     }
 
-    function place(shape, row, col) {
-        for(let r=0; r<shape.length; r++) {
-            for(let c=0; c<shape[r].length; c++) {
-                if(shape[r][c]) board[row+r][col+c] = 1;
+    function place(s, r, c) {
+        for(let y=0; y<s.length; y++) {
+            for(let x=0; x<s[y].length; x++) {
+                if(s[y][x]) board[r+y][c+x] = 1;
             }
         }
-        clearLines();
-        updateBoard();
+        checkLines();
+        renderBoard();
     }
 
-    function clearLines() {
-        let toClearR = [], toClearC = [];
+    function checkLines() {
         for(let i=0; i<8; i++) {
-            if(board[i].every(v => v === 1)) toClearR.push(i);
-            if(board.map(r => r[i]).every(v => v === 1)) toClearC.push(i);
+            if(board[i].every(v => v === 1)) { board[i].fill(0); score += 100; }
         }
-        toClearR.forEach(r => board[r].fill(0));
-        toClearC.forEach(c => board.forEach(r => r[c] = 0));
-        score += (toClearR.length + toClearC.length) * 100;
-        
-        // Win Condition Offline
-        if(!isOnline && score >= parseInt(document.getElementById('target').innerText)) {
-            alert("Победа! +20 ELO");
-            myData.elo += 20;
-            saveAndExit();
+        document.getElementById('score').innerText = score;
+        if(score >= parseInt(document.getElementById('target').innerText)) {
+            alert("Win!");
+            localStorage.setItem('bb_elo', elo + 20);
+            location.reload();
         }
-    }
-
-    function saveAndExit() {
-        localStorage.setItem('bb_elo', myData.elo);
-        location.reload();
-    }
-
-    function backToMenu() { location.reload(); }
-
-    function startTimer() {
-        let t = 300;
-        const int = setInterval(() => {
-            t--;
-            let m = Math.floor(t/60), s = t%60;
-            document.getElementById('timer').innerText = `${m}:${s<10?'0':''}${s}`;
-            if(t <= 0) {
-                clearInterval(int);
-                const oppS = parseInt(document.getElementById('opp-score').innerText);
-                if(score > oppS) { alert("Вы выиграли матч! +50 ELO"); myData.elo += 50; }
-                else { alert("Вы проиграли матч! -10 ELO"); myData.elo = Math.max(0, myData.elo - 10); }
-                saveAndExit();
-            }
-        }, 1000);
     }
 </script>
 </body>
