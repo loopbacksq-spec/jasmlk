@@ -2,153 +2,212 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Block Blast Online</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Block Blast Online | Pro Edition</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
         :root {
-            --bg-rainbow: linear-gradient(45deg, #ff9a9e, #fad0c4, #ffecd2, #a1c4fd, #c2e9fb);
+            --primary-bg: #0f0c29;
+            --glass: rgba(255, 255, 255, 0.1);
+            --border-glass: rgba(255, 255, 255, 0.2);
+            --text-color: #ffffff;
         }
-        body, html { 
-            margin: 0; padding: 0; overflow: hidden; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: var(--bg-rainbow);
-            background-size: 400% 400%;
-            animation: rainbow 15s ease infinite;
-        }
-        @keyframes rainbow { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
 
-        /* Splash Screen */
-        #splash {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        * { box-sizing: border-box; touch-action: manipulation; }
+
+        body {
+            margin: 0; padding: 0;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            color: var(--text-color);
             display: flex; justify-content: center; align-items: center;
-            background: inherit; z-index: 100;
+            min-height: 100vh; overflow: hidden;
         }
+
+        /* Анимированный фон "Радуга" на старте */
+        #splash {
+            position: fixed; inset: 0; z-index: 1000;
+            background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #48ff00, #00ffd5, #002bff, #7a00ff, #ff00c8, #ff0000);
+            background-size: 400%;
+            display: flex; justify-content: center; align-items: center;
+            animation: rainbow_bg 10s linear infinite;
+        }
+
+        @keyframes rainbow_bg { 0% { background-position: 0% 50%; } 100% { background-position: 400% 50%; } }
+
         #splash h1 {
-            font-size: 5rem; color: white; text-shadow: 2px 2px 10px rgba(0,0,0,0.2);
-            opacity: 0; transform: scale(0.5); animation: appear 1.5s forwards;
+            font-size: 4rem; text-transform: uppercase; letter-spacing: 5px;
+            animation: welcome_anim 2s ease-out forwards;
         }
-        @keyframes appear { to { opacity: 1; transform: scale(1); } }
 
-        /* Меню */
-        #menu { display: none; text-align: center; padding: 20px; }
-        .elo-info { font-size: 24px; font-weight: bold; margin-bottom: 20px; }
-        
-        /* Цвета уровней */
-        .lvl-green { color: #2ecc71; }
-        .lvl-red { color: #e74c3c; }
-        .lvl-purple { color: #9b59b6; }
-        .lvl-black { color: #2c3e50; }
-
-        .btn-play {
-            padding: 15px 50px; font-size: 24px; cursor: pointer;
-            background: #fff; border: none; border-radius: 50px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1); transition: 0.3s;
+        @keyframes welcome_anim {
+            0% { opacity: 0; transform: translateY(30px) scale(0.8); filter: blur(10px); }
+            100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
         }
-        .btn-play:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,0.15); }
 
-        /* Чат */
-        #chat-box {
-            width: 300px; height: 150px; margin: 20px auto;
-            background: rgba(255,255,255,0.7); border-radius: 10px;
-            overflow-y: auto; padding: 10px; text-align: left; font-size: 14px;
+        /* Основной контейнер */
+        #app-container {
+            width: 100%; max-width: 500px; height: 90vh;
+            background: var(--glass);
+            backdrop-filter: blur(15px);
+            border: 1px solid var(--border-glass);
+            border-radius: 24px;
+            display: none; flex-direction: column;
+            padding: 20px; position: relative;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
         }
+
+        /* Шапка с ELO и LVL */
+        .header {
+            display: flex; justify-content: space-around;
+            background: rgba(0,0,0,0.3); padding: 15px; border-radius: 15px; margin-bottom: 20px;
+        }
+
+        .stat-box { text-align: center; }
+        .stat-label { font-size: 12px; opacity: 0.7; text-transform: uppercase; }
+        .stat-value { font-size: 20px; font-weight: 800; display: block; }
+
+        /* Цветовые схемы для уровней */
+        .lvl-1 { color: #2ecc71; text-shadow: 0 0 10px #2ecc71; }
+        .lvl-2 { color: #e74c3c; text-shadow: 0 0 10px #e74c3c; }
+        .lvl-3 { color: #9b59b6; text-shadow: 0 0 10px #9b59b6; }
+        .lvl-4 { color: #000000; text-shadow: 0 0 5px #fff; }
 
         /* Игровое поле */
-        #game-container { display: none; position: relative; }
-        #grid { 
-            display: grid; grid-template-columns: repeat(8, 40px); 
-            grid-template-rows: repeat(8, 40px); gap: 2px; 
-            background: #bdc3c7; border: 5px solid #7f8c8d; margin: 20px auto;
+        .game-area {
+            flex-grow: 1; display: flex; flex-direction: column; align-items: center;
         }
-        .cell { width: 40px; height: 40px; background: #ecf0f1; }
-        .cell.filled { background: #3498db; box-shadow: inset 0 0 5px rgba(0,0,0,0.2); }
+
+        #grid {
+            display: grid; grid-template-columns: repeat(8, 1fr);
+            gap: 4px; background: rgba(255,255,255,0.05);
+            padding: 5px; border-radius: 8px; width: 320px; height: 320px;
+        }
+
+        .cell {
+            background: rgba(255,255,255,0.1); border-radius: 4px;
+            aspect-ratio: 1/1; transition: background 0.2s;
+        }
+
+        .cell.filled { background: #3498db; box-shadow: inset 0 0 8px rgba(255,255,255,0.5); }
+        .cell.highlight { background: rgba(52, 152, 219, 0.4); }
+
+        /* Кнопки */
+        .btn {
+            background: #fff; color: #000; border: none;
+            padding: 18px 40px; border-radius: 15px;
+            font-size: 18px; font-weight: bold; cursor: pointer;
+            transition: 0.3s; width: 100%; margin: 10px 0;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-play { background: linear-gradient(90deg, #00c6ff, #0072ff); color: white; }
+
+        /* Чат */
+        .chat-section {
+            background: rgba(0,0,0,0.2); border-radius: 15px; padding: 10px;
+            height: 150px; display: flex; flex-direction: column;
+        }
+        #chat-messages { flex-grow: 1; overflow-y: auto; font-size: 14px; margin-bottom: 5px; }
+        .chat-input {
+            background: rgba(255,255,255,0.1); border: 1px solid var(--border-glass);
+            color: white; padding: 8px; border-radius: 8px; outline: none;
+        }
+
+        /* Модалки выбора режима */
+        #mode-selection {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.8);
+            border-radius: 24px; display: none;
+            flex-direction: column; justify-content: center; align-items: center; padding: 20px;
+            z-index: 10;
+        }
+
+        /* Анимация поиска */
+        #matchmaking {
+            position: absolute; inset: 0; background: #0f0c29; border-radius: 24px;
+            display: none; flex-direction: column; justify-content: center; align-items: center;
+        }
+        .loader {
+            width: 80px; height: 80px; border: 5px solid #3498db;
+            border-top-color: transparent; border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Фигуры внизу */
+        #shapes-bench {
+            display: flex; justify-content: space-around; width: 100%;
+            height: 100px; margin-top: 15px;
+        }
+        .shape-preview {
+            transform: scale(0.6); transform-origin: top;
+            cursor: grab;
+        }
+
+        @media (max-width: 400px) {
+            #grid { width: 280px; height: 280px; }
+            #app-container { height: 100vh; border-radius: 0; }
+        }
     </style>
 </head>
 <body>
 
     <div id="splash"><h1>Привет!</h1></div>
 
-    <div id="nickname-screen" style="display:none; text-align:center; margin-top:20vh;">
-        <h2>Введите ваш никнейм</h2>
-        <input type="text" id="nick-input" maxlength="15">
-        <button onclick="saveNickname()">Войти</button>
-    </div>
-
-    <div id="menu">
-        <div class="elo-info">
-            ELO: <span id="elo-display">0</span> | 
-            LVL: <span id="lvl-display" class="lvl-green">1</span>
+    <div id="app-container">
+        <div class="header">
+            <div class="stat-box">
+                <span class="stat-label">Ваш ELO</span>
+                <span class="stat-value" id="elo-val">0</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Уровень</span>
+                <span class="stat-value" id="lvl-val">1</span>
+            </div>
         </div>
-        <button class="btn-play" onclick="showModes()">ИГРАТЬ</button>
-        <div id="chat-box"></div>
-        <input type="text" id="chat-input" placeholder="Сообщение..." onkeypress="sendMsg(event)">
+
+        <div id="main-menu" style="display: flex; flex-direction: column; flex-grow: 1;">
+            <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center;">
+                <h2 style="font-size: 30px; text-align: center;">BLOCK BLAST<br><span style="font-weight: 200; font-size: 16px;">ONLINE VERSION</span></h2>
+            </div>
+            
+            <button class="btn btn-play" id="open-modes-btn">ИГРАТЬ</button>
+
+            <div class="chat-section">
+                <div id="chat-messages"></div>
+                <input type="text" class="chat-input" id="chat-in" placeholder="Написать в глобальный чат...">
+            </div>
+        </div>
+
+        <div id="mode-selection">
+            <h3 style="margin-bottom: 30px;">Выберите режим</h3>
+            <button class="btn" onclick="startGame('offline')">ОФФЛАЙН</button>
+            <button class="btn" onclick="startGame('online')" style="background: #f1c40f;">ОНЛАЙН</button>
+            <button class="btn" onclick="closeModes()" style="background: none; color: white; border: 1px solid white;">НАЗАД</button>
+        </div>
+
+        <div id="game-screen" style="display: none; flex-direction: column; align-items: center;">
+            <div id="game-task" style="margin-bottom: 10px; font-weight: bold; color: #f1c40f;">Цель: <span id="target-score">0</span></div>
+            <div id="current-score" style="font-size: 24px; margin-bottom: 10px;">0</div>
+            
+            <div id="grid"></div>
+
+            <div id="shapes-bench"></div>
+
+            <button class="btn" onclick="surrender()" style="background: #e74c3c; color: white; margin-top: 20px;">СДАТЬСЯ</button>
+        </div>
+
+        <div id="matchmaking">
+            <div class="loader"></div>
+            <p id="search-status" style="margin-top: 20px;">Поиск соперника...</p>
+        </div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        let elo = localStorage.getItem('elo') ? parseInt(localStorage.getItem('elo')) : 0;
-        let nickname = localStorage.getItem('nickname');
+    <div id="nick-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; flex-direction: column; justify-content: center; align-items: center;">
+        <h2>Как тебя зовут?</h2>
+        <input type="text" id="nick-field" style="padding: 15px; border-radius: 10px; border: none; margin: 20px; width: 250px;">
+        <button class="btn btn-play" style="width: 250px;" id="save-nick-btn">НАЧАТЬ</button>
+    </div>
 
-        // 1. Splash Screen Logic
-        setTimeout(() => {
-            document.getElementById('splash').style.display = 'none';
-            if (!nickname) {
-                document.getElementById('nickname-screen').style.display = 'block';
-            } else {
-                showMenu();
-            }
-        }, 4500);
-
-        function saveNickname() {
-            const val = document.getElementById('nick-input').value;
-            if(val) {
-                localStorage.setItem('nickname', val);
-                nickname = val;
-                document.getElementById('nickname-screen').style.display = 'none';
-                showMenu();
-            }
-        }
-
-        function showMenu() {
-            document.getElementById('menu').style.display = 'block';
-            updateStats();
-            loadLocalChat();
-        }
-
-        function updateStats() {
-            const eloDisp = document.getElementById('elo-display');
-            const lvlDisp = document.getElementById('lvl-display');
-            eloDisp.innerText = elo;
-            
-            let lvl = Math.floor(elo / 10) + 1; // Простая логика уровня
-            lvlDisp.innerText = lvl;
-
-            lvlDisp.className = '';
-            if (lvl <= 50) lvlDisp.classList.add('lvl-green');
-            else if (lvl <= 150) lvlDisp.classList.add('lvl-red');
-            else if (lvl <= 500) lvlDisp.classList.add('lvl-purple');
-            else lvlDisp.classList.add('lvl-black');
-        }
-
-        // ЧАТ (Локальный на 5 сообщений)
-        function loadLocalChat() {
-            const messages = JSON.parse(localStorage.getItem('chat_history') || "[]");
-            const box = document.getElementById('chat-box');
-            box.innerHTML = messages.map(m => `<div><b>${m.user}:</b> ${m.text}</div>`).join('');
-        }
-
-        function sendMsg(e) {
-            if(e.key === 'Enter') {
-                const input = document.getElementById('chat-input');
-                let messages = JSON.parse(localStorage.getItem('chat_history') || "[]");
-                messages.push({user: nickname, text: input.value});
-                if(messages.length > 5) messages.shift();
-                localStorage.setItem('chat_history', JSON.stringify(messages));
-                input.value = '';
-                loadLocalChat();
-            }
-        }
-        
-        // Логика игры (Block Blast) будет инициализироваться здесь...
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
