@@ -7,34 +7,26 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-app.use(express.static(__dirname + '/public'));
+// Главное: говорим серверу отдавать index.html из корня или папки public
+app.use(express.static(path.join(__dirname, 'public')));
 
-const users = new Map(); // Храним socket.id -> id_messenger
+// Если файла нет в public, отдаем index.html из корня (защита от Cannot GET)
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+const users = new Map();
 
 io.on('connection', (socket) => {
-    // Анти-спам: ограничение частоты сообщений
-    let lastMsgTime = 0;
-
     socket.on('register', (myId) => {
         users.set(myId, socket.id);
         io.emit('userStatus', { id: myId, status: 'online' });
     });
 
     socket.on('sendMessage', (data) => {
-        const now = Date.now();
-        if (now - lastMsgTime < 500) return; // Анти-спам 0.5 сек
-        lastMsgTime = now;
-
         const recipientSocket = users.get(data.to);
         if (recipientSocket) {
             io.to(recipientSocket).emit('newMessage', data);
-        }
-    });
-
-    socket.on('typing', (data) => {
-        const recipientSocket = users.get(data.to);
-        if (recipientSocket) {
-            io.to(recipientSocket).emit('isTyping', { from: data.from });
         }
     });
 
@@ -48,13 +40,5 @@ io.on('connection', (socket) => {
     });
 });
 
-// Автопингер (Self-ping)
-setInterval(() => {
-    const url = `https://${process.env.RENDER_EXTERNAL_HOSTNAME}.onrender.com`;
-    if (process.env.RENDER_EXTERNAL_HOSTNAME) {
-        http.get(url, (res) => console.log('Self-ping success'));
-    }
-}, 600000); // каждые 10 минут
-
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server started on port ${PORT}`));
