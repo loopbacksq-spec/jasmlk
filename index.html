@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <style>
+        :root { --bg: #000; --text: #fff; --accent: #333; }
+        body.light { --bg: #fff; --text: #000; --accent: #eee; }
+        
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; transition: 0.3s; }
+        
+        /* Сплеш-экран */
+        #splash {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: black; display: flex; justify-content: center; align-items: center;
+            z-index: 100;
+        }
+        .fade-in { animation: fadeIn 2s forwards; opacity: 0; font-size: 2rem; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Меню и чаты */
+        #main-menu { display: none; padding: 20px; }
+        .hidden { display: none !important; }
+        .sidebar { position: fixed; left: -250px; width: 250px; height: 100%; background: var(--accent); transition: 0.3s; z-index: 50; padding: 20px; }
+        .sidebar.active { left: 0; }
+        
+        .chat-msg { margin: 5px; padding: 10px; border-radius: 10px; max-width: 70%; }
+        .my-msg { background: #007bff; align-self: flex-end; margin-left: auto; }
+        .their-msg { background: #444; }
+    </style>
+</head>
+<body>
+
+    <div id="splash"><div id="welcome-text" class="fade-in">Привет!</div></div>
+
+    <div id="main-menu">
+        <header style="display:flex; justify-content: space-between;">
+            <button onclick="toggleSidebar()">☰</button>
+            <div id="header-id">ID: ****</div>
+            <input type="number" id="search-id" placeholder="Поиск ID...">
+            <button onclick="startChat()">Найти</button>
+        </header>
+
+        <div id="chats-list"></div>
+    </div>
+
+    <div id="sidebar" class="sidebar">
+        <h3>Настройки</h3>
+        <p>Статус: <span id="srv-status">...</span></p>
+        <p>Пинг: <span id="srv-ping">0</span>ms</p>
+        <hr>
+        <button onclick="toggleTheme()">Сменить тему</button>
+        <button onclick="resetID()">Сбросить ID</button><br><br>
+        <label><input type="checkbox" id="videoMode" onchange="toggleVideoMode()"> Видео-мод</label>
+        <hr>
+        <h4>Калькулятор</h4>
+        <input type="text" id="calc-display" style="width:100%" placeholder="2+2">
+        <button onclick="calc()">=</button> <span id="calc-res"></span>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let myId = localStorage.getItem('myId') || Math.floor(1000 + Math.random() * 9000);
+        localStorage.setItem('myId', myId);
+
+        // 1. Анимация входа
+        setTimeout(() => {
+            document.getElementById('welcome-text').style.display = 'block';
+            setTimeout(() => {
+                document.getElementById('splash').style.display = 'none';
+                document.getElementById('main-menu').style.display = 'block';
+                initApp();
+            }, 5000);
+        }, 2000);
+
+        function initApp() {
+            document.getElementById('header-id').innerText = `ID: ${myId}`;
+            socket.emit('register', myId);
+            loadHistory();
+            startPinger();
+        }
+
+        // 2. Видео-мод
+        function toggleVideoMode() {
+            const isVideo = document.getElementById('videoMode').checked;
+            document.getElementById('header-id').innerText = isVideo ? "ID: ****" : `ID: ${myId}`;
+        }
+
+        // 3. Пинг и Статус
+        function startPinger() {
+            setInterval(() => {
+                const start = Date.now();
+                socket.emit('ping_request'); // Простой запрос
+                document.getElementById('srv-ping').innerText = Math.floor(Math.random() * 50); // Симуляция
+                document.getElementById('srv-status').innerText = socket.connected ? "ОНЛАЙН" : "ОФЛАЙН";
+                document.getElementById('srv-status').style.color = socket.connected ? "green" : "red";
+            }, 3000);
+        }
+
+        // 4. Калькулятор
+        function calc() {
+            try {
+                const val = document.getElementById('calc-display').value;
+                document.getElementById('calc-res').innerText = eval(val);
+            } catch {
+                document.getElementById('calc-res').innerText = "Ошибка";
+            }
+        }
+
+        // 5. Логика сообщений
+        socket.on('newMessage', (data) => {
+            saveMessage(data.from, data.msg, 'theirs');
+            // Обновить UI...
+        });
+
+        function saveMessage(id, text, type) {
+            let history = JSON.parse(localStorage.getItem('chat_history') || '{}');
+            if(!history[id]) history[id] = [];
+            history[id].push({ text, type, time: new Date().toLocaleTimeString() });
+            localStorage.setItem('chat_history', JSON.stringify(history));
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+        }
+    </script>
+</body>
+</html>
