@@ -2,269 +2,396 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Messenger V1</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Messenger Pro</title>
     <style>
-        :root {
-            --bg: #000000;
-            --panel: #1a1a1a;
-            --text: #ffffff;
-            --accent: #333333;
-            --blue: #007bff;
-        }
-
-        body.light-theme {
-            --bg: #ffffff;
-            --panel: #f0f0f0;
-            --text: #000000;
-            --accent: #dddddd;
-        }
-
-        * { box-sizing: border-box; transition: background 0.2s, color 0.2s; }
+        :root { --bg: #000; --panel: #111; --text: #fff; --accent: #222; --blue: #007bff; --green: #28a745; }
+        body.light-theme { --bg: #fff; --panel: #f5f5f5; --text: #000; --accent: #ddd; }
         
-        /* Фикс для мобильного Google Chrome (динамическая высота) */
-        body, html { 
-            margin: 0; padding: 0; 
-            height: 100vh; height: 100svh; 
-            overflow: hidden; 
-            background: var(--bg); 
-            color: var(--text); 
-            font-family: -apple-system, sans-serif; 
-        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body, html { margin: 0; padding: 0; height: 100svh; overflow: hidden; background: var(--bg); color: var(--text); font-family: sans-serif; }
 
-        /* СПЛЕШ-ЭКРАН */
-        #splash {
-            position: fixed; inset: 0; background: black; display: flex;
-            justify-content: center; align-items: center; z-index: 1000;
-        }
-        .welcome-anim { opacity: 0; transform: translateY(20px); animation: appear 1.5s forwards; font-size: 2.5rem; font-weight: bold; color: white; }
-        @keyframes appear { to { opacity: 1; transform: translateY(0); } }
+        /* Дизайн панелей */
+        .page { display: none; height: 100%; flex-direction: column; position: absolute; inset: 0; background: var(--bg); z-index: 10; }
+        .page.active { display: flex; }
 
-        /* ГЛАВНЫЙ ИНТЕРФЕЙС */
-        #app { display: none; height: 100%; flex-direction: column; }
+        /* Сплеш */
+        #splash { position: fixed; inset: 0; background: #000; display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .welcome-anim { animation: fadeIn 1.5s forwards; font-size: 2rem; font-weight: bold; color: #fff; }
+        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
 
-        header {
-            height: 60px; background: var(--panel); display: flex;
-            align-items: center; padding: 0 15px; gap: 15px;
-            border-bottom: 1px solid var(--accent);
-            flex-shrink: 0;
-        }
+        header { height: 60px; background: var(--panel); display: flex; align-items: center; padding: 0 15px; gap: 10px; border-bottom: 1px solid var(--accent); }
+        input { background: var(--accent); border: none; color: var(--text); padding: 10px; border-radius: 8px; outline: none; }
 
-        .menu-btn { font-size: 24px; cursor: pointer; background: none; border: none; color: var(--text); }
-        .search-box { flex-grow: 1; display: flex; gap: 5px; }
-        input { background: var(--accent); border: none; color: var(--text); padding: 8px 12px; border-radius: 8px; outline: none; width: 100%; font-size: 16px; }
-
-        .main-content { flex-grow: 1; display: flex; overflow: hidden; position: relative; }
-        #chat-list { width: 100%; max-width: 400px; border-right: 1px solid var(--accent); overflow-y: auto; background: var(--bg); }
-        #chat-window { flex-grow: 1; display: flex; flex-direction: column; background: var(--bg); position: relative; }
-
-        @media (max-width: 768px) {
-            #chat-list { width: 100%; max-width: none; }
-            #chat-window { position: absolute; inset: 0; transform: translateX(100%); transition: 0.3s; z-index: 100; }
-            #chat-window.active { transform: translateX(0); }
-        }
-
-        /* БОКОВАЯ ПАНЕЛЬ */
-        #sidebar {
-            position: fixed; left: -300px; top: 0; bottom: 0; width: 280px;
-            background: var(--panel); z-index: 200; padding: 20px;
-            box-shadow: 5px 0 15px rgba(0,0,0,0.5); transition: 0.3s;
-        }
-        #sidebar.open { left: 0; }
-        .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 150; }
-
-        /* СООБЩЕНИЯ */
-        .messages { flex-grow: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
-        .msg { max-width: 80%; padding: 10px 15px; border-radius: 15px; font-size: 15px; position: relative; word-wrap: break-word; }
-        .msg.sent { align-self: flex-end; background: var(--blue); color: white; }
+        /* Чат */
+        .main-layout { display: flex; flex: 1; overflow: hidden; }
+        #chat-list { width: 100%; max-width: 350px; border-right: 1px solid var(--accent); overflow-y: auto; }
+        #chat-window { flex: 1; display: flex; flex-direction: column; background: var(--bg); }
+        .messages { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 8px; }
+        .msg { max-width: 80%; padding: 10px; border-radius: 12px; font-size: 14px; }
+        .msg.sent { align-self: flex-end; background: var(--blue); }
         .msg.received { align-self: flex-start; background: var(--accent); }
-        .msg-time { font-size: 10px; opacity: 0.6; margin-top: 5px; text-align: right; }
 
-        .chat-item { padding: 15px; border-bottom: 1px solid var(--accent); cursor: pointer; }
-        .chat-item:hover { background: var(--accent); }
+        /* Кошелек и Кликер */
+        .card { background: linear-gradient(45deg, #333, #000); padding: 20px; border-radius: 15px; margin: 20px; position: relative; border: 1px solid #444; }
+        .clicker-btn { width: 150px; height: 150px; background: var(--blue); border-radius: 50%; margin: 20px auto; display: flex; justify-content: center; align-items: center; font-size: 40px; cursor: pointer; user-select: none; box-shadow: 0 0 20px var(--blue); }
+        .clicker-btn:active { transform: scale(0.95); }
 
-        /* ВИДЕО МОД */
-        .video-mode-active .user-id-text { filter: blur(5px); }
-        .video-mode-active .user-id-text::after { content: "****"; filter: none; margin-left: -20px; }
-        
-        /* ФИКС ДЛЯ КНОПОК */
-        button { cursor: pointer; border: none; border-radius: 8px; }
+        /* Рулетка */
+        #roulette-circle { width: 100px; height: 100px; border-radius: 50%; border: 5px solid var(--accent); margin: 20px auto; transition: 3s cubic-bezier(0.1, 0, 0.1, 1); position: relative; }
+        .pointer { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-top: 20px solid red; z-index: 5; }
+
+        /* Меню */
+        #sidebar { position: fixed; left: -280px; top: 0; bottom: 0; width: 260px; background: var(--panel); z-index: 200; padding: 20px; transition: 0.3s; }
+        #sidebar.open { left: 0; }
+        .sidebar-item { padding: 15px; margin-bottom: 5px; border-radius: 8px; cursor: pointer; background: var(--accent); }
+        .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 150; }
+
+        .pinned { border-left: 4px solid var(--blue); background: rgba(0,123,255,0.1); }
+        @media (max-width: 768px) { #chat-list { max-width: none; } #chat-window { display: none; } #chat-window.active { display: flex; position: fixed; inset: 0; z-index: 50; } }
     </style>
 </head>
-<body>
+<body class="dark-theme">
 
 <div id="splash"><div class="welcome-anim">Привет!</div></div>
-<div class="overlay" onclick="toggleMenu()"></div>
+<div class="overlay" onclick="closeSidebar()"></div>
 
-<div id="app">
+<div id="page-main" class="page active">
     <header>
-        <button class="menu-btn" onclick="toggleMenu()">☰</button>
-        <div class="search-box">
-            <input type="number" id="searchId" placeholder="Введите ID...">
-            <button onclick="findUser()" style="background:var(--blue); color:white; padding:0 15px;">Найти</button>
+        <button onclick="openSidebar()" style="background:none; color:#fff; font-size:24px; border:none;">☰</button>
+        <div style="flex:1; display:flex; gap:5px;">
+            <input type="number" id="searchId" placeholder="Поиск ID..." style="width:100%">
+            <button onclick="findUser()" style="background:var(--blue); color:#fff; border-radius:8px; padding:0 10px; border:none;">🔍</button>
         </div>
     </header>
-
-    <div class="main-content">
+    <div class="main-layout">
         <div id="chat-list"></div>
         <div id="chat-window">
-            <div id="chat-header" style="padding:15px; background:var(--panel); display:flex; align-items:center; gap:10px; flex-shrink:0;">
-                <button onclick="closeChat()" style="background:none; color:var(--text); font-size:20px;">⬅</button>
-                <span id="target-name" class="user-id-text">Выберите чат</span>
+            <div id="chat-header" style="padding:15px; background:var(--panel); display:flex; justify-content:space-between;">
+                <span id="chat-target-name">Выберите чат</span>
+                <button onclick="deleteCurrentChat()" style="background:red; color:#fff; border:none; border-radius:5px; font-size:10px;">УДАЛИТЬ У ВСЕХ</button>
             </div>
-            <div class="messages" id="message-container"></div>
-            <div style="padding:15px; display:flex; gap:10px; background:var(--panel); flex-shrink:0;">
-                <input type="text" id="msgInput" placeholder="Сообщение..." onkeypress="handleKeyPress(event)">
-                <button onclick="sendMessage()" style="padding:10px 20px; background:var(--blue); color:white;">👉</button>
+            <div class="messages" id="msg-cont"></div>
+            <div style="padding:15px; display:flex; gap:10px; background:var(--panel);">
+                <input type="text" id="msgInput" placeholder="Сообщение..." style="flex:1">
+                <button onclick="sendMsg()" style="background:var(--blue); color:#fff; border:none; padding:10px 20px; border-radius:8px;"> Send </button>
             </div>
         </div>
     </div>
 </div>
 
+<div id="page-wallet" class="page">
+    <header><button onclick="goMain()" style="background:none; color:var(--text); border:none; font-size:20px;">⬅ Назад</button><h3>Кошелек</h3></header>
+    <div class="card">
+        <div style="opacity:0.7">Баланс:</div>
+        <div style="font-size:32px; font-weight:bold;"><span id="balance">0.00</span> ₽</div>
+        <div style="margin-top:20px; font-family:monospace; letter-spacing:2px;" id="card-num">**** **** **** ****</div>
+        <div style="margin-top:10px; font-size:12px; opacity:0.5">HOLDER: <span id="card-holder">ID 0000</span></div>
+    </div>
+    <div style="padding:0 20px; display:flex; gap:10px;">
+        <button onclick="showTransfer()" style="flex:1; padding:15px; background:var(--blue); color:#fff; border-radius:10px; border:none;">Перевод</button>
+    </div>
+    <div style="text-align:center; margin-top:20px;">
+        <div>⚡ Энергия: <span id="energy">4000</span> / 4000</div>
+        <div class="clicker-btn" onclick="clickMoney()">🔘</div>
+        <p>Нажимай, чтобы заработать!</p>
+    </div>
+</div>
+
+<div id="page-roulette" class="page">
+    <header><button onclick="goMain()" style="background:none; color:var(--text); border:none; font-size:20px;">⬅ Назад</button><h3>Рулетка</h3></header>
+    <div style="text-align:center; padding:20px;">
+        <div id="roulette-timer" style="font-size:24px; color:var(--blue)">До начала: 15с</div>
+        <div style="position:relative; width:fit-content; margin:auto;">
+            <div class="pointer"></div>
+            <div id="roulette-circle"></div>
+        </div>
+        <input type="number" id="betAmount" placeholder="Сумма ставки" style="margin:10px; width:150px;">
+        <div style="display:flex; justify-content:center; gap:10px;">
+            <button onclick="placeBet()" style="background:var(--green); color:#fff; padding:10px 20px; border:none; border-radius:8px;">ПОСТАВИТЬ</button>
+            <label><input type="checkbox" id="hideIdBet"> Скрыть ID</label>
+        </div>
+        <div style="margin-top:20px; text-align:left; background:var(--panel); padding:10px; border-radius:10px; height:200px; overflow-y:auto;">
+            <b>Активные ставки:</b>
+            <div id="bet-list"></div>
+        </div>
+    </div>
+</div>
+
 <div id="sidebar">
-    <h2 style="margin-top:0">Меню</h2>
-    <p>Мой ID: <b id="my-id-display" class="user-id-text">0000</b></p>
-    <p>Сервер: <span id="status-tag">...</span></p>
-    <p>Пинг: <span id="ping-tag">0</span> ms</p>
-    <hr style="border:0; border-top:1px solid var(--accent)">
-    <button onclick="toggleTheme()" style="width:100%; padding:12px; margin-bottom:10px; background:var(--accent); color:var(--text);">Тема</button>
-    <button onclick="resetMyId()" style="width:100%; padding:12px; margin-bottom:10px; background:#dc3545; color:white;">Сброс ID</button>
-    <label style="display:flex; align-items:center; gap:10px; margin:20px 0;">
-        <input type="checkbox" id="videoModeCheck" onchange="toggleVideoMode()"> Видео Мод
-    </label>
-    <hr style="border:0; border-top:1px solid var(--accent)">
-    <h4>Калькулятор</h4>
-    <input type="text" id="calcInput" placeholder="2+2" oninput="runCalc()" style="margin-bottom:10px">
-    <div id="calcResult" style="font-size:18px; font-weight:bold; color:var(--blue)"></div>
+    <h3 style="margin-top:0">Меню</h3>
+    <div class="sidebar-item" onclick="goWallet()">💳 Кошелек</div>
+    <div class="sidebar-item" onclick="goRoulette()">🎰 Рулетка</div>
+    <div class="sidebar-item" onclick="toggleTheme()">🌓 Сменить тему</div>
+    <div class="sidebar-item" onclick="resetId()">🔄 Сбросить ID</div>
+    <hr style="border:0; border-top:1px solid #333">
+    <div style="font-size:12px; opacity:0.6">
+        <div>ID: <b id="menu-id" class="user-id">0000</b></div>
+        <div>Статус: <span id="srv-status">...</span></div>
+        <div>Пинг: <span id="srv-ping">0</span> ms</div>
+    </div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
     const socket = io();
     let myId = localStorage.getItem('messenger_id') || Math.floor(1000 + Math.random() * 9000).toString();
-    let currentChatId = null;
-    let chats = JSON.parse(localStorage.getItem('chats_history') || '{}');
-    let onlineUsers = []; // Список тех, кто реально в сети
+    let balance = parseFloat(localStorage.getItem('wallet_balance') || '0');
+    let energy = parseInt(localStorage.getItem('wallet_energy') || '4000');
+    let cardNum = localStorage.getItem('card_number') || generateCard();
+    let chats = JSON.parse(localStorage.getItem('chats_v2') || '{}');
+    let pinnedChats = JSON.parse(localStorage.getItem('pinned_chats') || '[]');
+    let currentTarget = null;
+    let videoMode = false;
 
+    // Инициализация
     window.onload = () => {
         localStorage.setItem('messenger_id', myId);
-        document.getElementById('my-id-display').innerText = myId;
-        
+        localStorage.setItem('card_number', cardNum);
+        document.getElementById('menu-id').innerText = myId;
+        document.getElementById('card-holder').innerText = "ID " + myId;
+        document.getElementById('card-num').innerText = cardNum;
+        updateWalletUI();
+
         setTimeout(() => {
             document.getElementById('splash').style.display = 'none';
-            document.getElementById('app').style.display = 'flex';
             socket.emit('register', myId);
             renderChatList();
-            startPinger();
-        }, 5000); 
+            startRealPing();
+            startEnergyRegen();
+        }, 5000);
     };
 
-    // Слушаем список онлайн пользователей от сервера
-    socket.on('updateUserList', (list) => {
-        onlineUsers = list;
+    function generateCard() {
+        return "4400 " + Math.floor(1000 + Math.random()*9000) + " " + Math.floor(1000 + Math.random()*9000) + " " + Math.floor(1000 + Math.random()*9000);
+    }
+
+    // --- ПИНГ ---
+    function startRealPing() {
+        setInterval(() => {
+            const start = Date.now();
+            socket.emit('heartbeat');
+            socket.once('heartbeat_reply', () => {
+                const diff = Date.now() - start;
+                document.getElementById('srv-ping').innerText = diff;
+                document.getElementById('srv-status').innerText = "ОНЛАЙН";
+                document.getElementById('srv-status').style.color = "#00ff00";
+            });
+        }, 3000);
+    }
+
+    // --- КОШЕЛЕК И КЛИКЕР ---
+    function clickMoney() {
+        if (energy >= 1) {
+            energy -= 1;
+            balance += 0.1;
+            updateWalletUI();
+            saveWallet();
+        } else {
+            alert("Нет энергии! Подожди регенерации.");
+        }
+    }
+
+    function startEnergyRegen() {
+        setInterval(() => {
+            if (energy < 4000) {
+                energy = Math.min(4000, energy + 2);
+                updateWalletUI();
+                saveWallet();
+            }
+        }, 1000);
+    }
+
+    function updateWalletUI() {
+        document.getElementById('balance').innerText = balance.toFixed(2);
+        document.getElementById('energy').innerText = energy;
+    }
+
+    function saveWallet() {
+        localStorage.setItem('wallet_balance', balance);
+        localStorage.setItem('wallet_energy', energy);
+    }
+
+    function showTransfer() {
+        const targetCard = prompt("Введите номер карты получателя:");
+        const amount = parseFloat(prompt("Сумма перевода:"));
+        if (targetCard && amount > 0 && balance >= amount) {
+            balance -= amount;
+            socket.emit('sendMoney', { toCard: targetCard, amount, fromId: myId });
+            updateWalletUI();
+            saveWallet();
+            alert("Перевод выполнен!");
+        } else {
+            alert("Ошибка перевода");
+        }
+    }
+
+    socket.on('receiveMoney', (data) => {
+        if (data.toCard === cardNum) {
+            balance += data.amount;
+            updateWalletUI();
+            saveWallet();
+            alert(`Вам пришел перевод ${data.amount}₽ от ID ${data.fromId}!`);
+        }
     });
 
-    // --- ЛОГИКА ЧАТОВ ---
+    // --- ЧАТЫ ---
     function findUser() {
-        const idInput = document.getElementById('searchId');
-        const id = idInput.value.trim();
-        
-        if (!id || id === myId) return alert("Введите чужой ID");
-
-        // ПРОВЕРКА: Если ты не общался с ним раньше, проверяем, в сети ли он
-        // (Для полноценной проверки всех ID нужна база данных, но в текущем "бесплатном" варианте 
-        // мы проверяем тех, кто подключен к сокетам прямо сейчас)
+        const id = document.getElementById('searchId').value.trim();
+        if (!id || id === myId) return;
         socket.emit('checkUser', id, (exists) => {
-            if (exists || chats[id]) {
+            if (exists) {
                 if (!chats[id]) chats[id] = [];
-                saveData();
                 openChat(id);
                 renderChatList();
-                idInput.value = '';
-            } else {
-                alert("Пользователь с таким ID не найден в сети!");
-            }
+            } else alert("Юзер не в сети");
         });
     }
 
     function openChat(id) {
-        currentChatId = id;
-        document.getElementById('target-name').innerText = "ID: " + id;
-        document.getElementById('message-container').innerHTML = '';
-        if (chats[id]) {
-            chats[id].forEach(msg => addMessageToUI(msg.text, msg.from === myId ? 'sent' : 'received', msg.time));
-        }
+        currentTarget = id;
+        document.getElementById('chat-target-name').innerText = "ID: " + id;
+        document.getElementById('msg-cont').innerHTML = '';
+        chats[id].forEach(m => addMsgUI(m.text, m.from === myId ? 'sent' : 'received'));
         if (window.innerWidth <= 768) document.getElementById('chat-window').classList.add('active');
     }
 
-    function sendMessage() {
-        const input = document.getElementById('msgInput');
-        const text = input.value.trim();
-        if (!text || !currentChatId) return;
-
-        const time = new Date().toLocaleTimeString().slice(0, 5);
-        const msgData = { from: myId, to: currentChatId, text, time };
-
-        socket.emit('sendMessage', msgData);
-        if (!chats[currentChatId]) chats[currentChatId] = [];
-        chats[currentChatId].push(msgData);
-        saveData();
-        addMessageToUI(text, 'sent', time);
+    function sendMsg() {
+        const val = document.getElementById('msgInput').value.trim();
+        if (!val || !currentTarget) return;
+        const msg = { from: myId, to: currentTarget, text: val };
+        socket.emit('sendMessage', msg);
+        chats[currentTarget].push(msg);
+        addMsgUI(val, 'sent');
+        document.getElementById('msgInput').value = '';
+        saveChats();
         renderChatList();
-        input.value = '';
     }
 
     socket.on('newMessage', (data) => {
-        const senderId = data.from;
-        if (!chats[senderId]) chats[senderId] = [];
-        chats[senderId].push(data);
-        saveData();
+        if (!chats[data.from]) chats[data.from] = [];
+        chats[data.from].push(data);
+        saveChats();
         renderChatList();
-        if (currentChatId === senderId) addMessageToUI(data.text, 'received', data.time);
+        if (currentTarget === data.from) addMsgUI(data.text, 'received');
+    });
+
+    // УДАЛЕНИЕ У ВСЕХ
+    function deleteCurrentChat() {
+        if (!currentTarget || !confirm("Удалить чат у обоих?")) return;
+        socket.emit('deleteChatGlobal', { from: myId, to: currentTarget });
+        delete chats[currentTarget];
+        saveChats();
+        renderChatList();
+        goMain();
+        document.getElementById('chat-window').classList.remove('active');
+    }
+
+    socket.on('chatDeleted', (data) => {
+        if (chats[data.from]) {
+            delete chats[data.from];
+            saveChats();
+            renderChatList();
+            if (currentTarget === data.from) {
+                alert("Этот чат был удален собеседником");
+                goMain();
+            }
+        }
     });
 
     function renderChatList() {
-        const container = document.getElementById('chat-list');
-        container.innerHTML = '';
-        Object.keys(chats).forEach(id => {
+        const cont = document.getElementById('chat-list');
+        cont.innerHTML = '';
+        
+        // Сортировка: закрепленные сверху
+        const sortedIds = Object.keys(chats).sort((a,b) => {
+            const aPin = pinnedChats.includes(a);
+            const bPin = pinnedChats.includes(b);
+            return bPin - aPin;
+        });
+
+        sortedIds.forEach(id => {
             const div = document.createElement('div');
-            div.className = 'chat-item';
-            div.innerHTML = `<div class="user-id-text"><b>ID: ${id}</b></div><div style="font-size:12px; opacity:0.5">Чат активен</div>`;
+            div.className = `chat-item ${pinnedChats.includes(id) ? 'pinned' : ''}`;
+            div.style = "padding:15px; border-bottom:1px solid var(--accent); cursor:pointer;";
+            div.innerHTML = `<b>ID: ${id}</b> <button onclick="togglePin('${id}', event)" style="float:right">📌</button>`;
             div.onclick = () => openChat(id);
-            container.appendChild(div);
+            cont.appendChild(div);
         });
     }
 
-    function addMessageToUI(text, type, time) {
-        const container = document.getElementById('message-container');
-        const div = document.createElement('div');
-        div.className = `msg ${type}`;
-        div.innerHTML = `<div>${text}</div><div class="msg-time">${time}</div>`;
-        container.appendChild(div);
-        container.scrollTop = container.scrollHeight;
+    function togglePin(id, e) {
+        e.stopPropagation();
+        if (pinnedChats.includes(id)) pinnedChats = pinnedChats.filter(p => p !== id);
+        else pinnedChats.push(id);
+        localStorage.setItem('pinned_chats', JSON.stringify(pinnedChats));
+        renderChatList();
     }
 
-    // --- СЕРВИСНЫЕ ФУНКЦИИ ---
-    function toggleMenu() {
-        const sb = document.getElementById('sidebar');
-        document.querySelector('.overlay').style.display = sb.classList.toggle('open') ? 'block' : 'none';
+    // --- РУЛЕТКА ---
+    function placeBet() {
+        const amt = parseFloat(document.getElementById('betAmount').value);
+        if (amt > 0 && balance >= amt) {
+            balance -= amt;
+            updateWalletUI();
+            saveWallet();
+            socket.emit('placeBet', { 
+                id: document.getElementById('hideIdBet').checked ? '?' : myId, 
+                amount: amt 
+            });
+        }
     }
+
+    socket.on('rouletteTick', (t) => {
+        document.getElementById('roulette-timer').innerText = `До начала: ${t}с`;
+    });
+
+    socket.on('newBet', (data) => {
+        const item = document.createElement('div');
+        item.innerText = `ID ${data.id} поставил: ${data.amount}₽`;
+        document.getElementById('bet-list').prepend(item);
+    });
+
+    socket.on('rouletteResult', (data) => {
+        const circle = document.getElementById('roulette-circle');
+        const deg = data.result === 'green' ? 1800 : 1980; // Эмуляция вращения
+        circle.style.transform = `rotate(${deg}deg)`;
+        circle.style.background = data.result === 'green' ? 'green' : 'gray';
+
+        setTimeout(() => {
+            if (data.result === 'green') {
+                data.bets.forEach(b => {
+                    if (b.id === myId || (b.id === '?' && myId)) { // Упрощенно для примера
+                        balance += b.amount * 2;
+                        updateWalletUI();
+                        saveWallet();
+                    }
+                });
+            }
+            circle.style.transition = 'none';
+            circle.style.transform = 'rotate(0deg)';
+            setTimeout(() => circle.style.transition = '3s cubic-bezier(0.1, 0, 0.1, 1)', 50);
+            document.getElementById('bet-list').innerHTML = '';
+        }, 4000);
+    });
+
+    // --- НАВИГАЦИЯ ---
+    function openSidebar() { document.getElementById('sidebar').classList.add('open'); document.querySelector('.overlay').style.display = 'block'; }
+    function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.querySelector('.overlay').style.display = 'none'; }
+    function goWallet() { closeSidebar(); hideAll(); document.getElementById('page-wallet').classList.add('active'); }
+    function goRoulette() { closeSidebar(); hideAll(); document.getElementById('page-roulette').classList.add('active'); }
+    function goMain() { hideAll(); document.getElementById('page-main').classList.add('active'); }
+    function hideAll() { document.querySelectorAll('.page').forEach(p => p.classList.remove('active')); }
     function toggleTheme() { document.body.classList.toggle('light-theme'); }
-    function toggleVideoMode() { document.body.classList.toggle('video-mode-active', document.getElementById('videoModeCheck').checked); }
-    function resetMyId() { if(confirm("Сбросить ID?")) { localStorage.clear(); location.reload(); } }
-    function runCalc() {
-        try { document.getElementById('calcResult').innerText = "= " + eval(document.getElementById('calcInput').value.replace(/[^-()\d/*+.]/g, '')); } catch(e) {}
+    function resetId() { localStorage.clear(); location.reload(); }
+    function saveChats() { localStorage.setItem('chats_v2', JSON.stringify(chats)); }
+    function addMsgUI(t, type) {
+        const div = document.createElement('div');
+        div.className = `msg ${type}`;
+        div.innerText = t;
+        document.getElementById('msg-cont').appendChild(div);
+        document.getElementById('msg-cont').scrollTop = document.getElementById('msg-cont').scrollHeight;
     }
-    function startPinger() {
-        setInterval(() => {
-            document.getElementById('status-tag').innerText = socket.connected ? "ОНЛАЙН" : "ОФЛАЙН";
-            document.getElementById('status-tag').style.color = socket.connected ? "#00ff00" : "#ff4444";
-            document.getElementById('ping-tag').innerText = Math.floor(Math.random() * 25 + 5);
-        }, 2000);
-    }
-    function handleKeyPress(e) { if (e.key === 'Enter') sendMessage(); }
-    function closeChat() { document.getElementById('chat-window').classList.remove('active'); }
-    function saveData() { localStorage.setItem('chats_history', JSON.stringify(chats)); }
 </script>
 </body>
 </html>
