@@ -1,195 +1,153 @@
-const socket = io(); // Подключение к Render серверу
+// --- ИНИЦИАЛИЗАЦИЯ ДАННЫХ ---
+let userData = {
+    nick: localStorage.getItem('block_nick') || '',
+    elo: parseInt(localStorage.getItem('block_elo')) || 0,
+    lvl: 1
+};
 
-// --- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ---
-let grid = Array(8).fill().map(() => Array(8).fill(0));
-let currentShapes = [];
-let score = 0;
-let targetScore = 0;
-let isDragging = false;
-let draggedShape = null;
-let dragElement = null;
+const splash = document.getElementById('splash');
+const app = document.getElementById('app-container');
+const nickModal = document.getElementById('nick-modal');
 
-const GRID_SIZE = 8;
-const CELL_SIZE = 40;
-
-// --- ИНИЦИАЛИЗАЦИЯ ИГРЫ ---
-function startOfflineGame() {
-    document.getElementById('menu').style.display = 'none';
-    document.getElementById('game-container').style.display = 'block';
-    
-    // Рассчитываем цель (зависит от ELO и LVL)
-    let lvl = Math.floor(elo / 10) + 1;
-    targetScore = 500 + (lvl * 150) + (elo * 5);
-    
-    score = 0;
-    grid = Array(8).fill().map(() => Array(8).fill(0));
-    
-    updateGameUI();
-    renderGrid();
-    generateNewShapes();
-}
-
-// --- ГЕНЕРАЦИЯ ФИГУР ---
-// Создаем только те фигуры, которые реально поставить (упрощенная логика)
-const SHAPE_TYPES = [
-    [[1, 1], [1, 1]], // Квадрат
-    [[1, 1, 1]],      // Линия 3
-    [[1], [1], [1]],   // Вертикаль 3
-    [[1, 0], [1, 1]], // L-образная
-    [[1]]             // Точка
-];
-
-function generateNewShapes() {
-    const container = document.getElementById('shapes-container');
-    container.innerHTML = '';
-    currentShapes = [];
-
-    for (let i = 0; i < 3; i++) {
-        let randomType = SHAPE_TYPES[Math.floor(Math.random() * SHAPE_TYPES.length)];
-        currentShapes.push(randomType);
-        
-        let shapeDiv = createShapeElement(randomType, i);
-        container.appendChild(shapeDiv);
-    }
-}
-
-function createShapeElement(shape, index) {
-    const div = document.createElement('div');
-    div.className = 'shape-item';
-    div.dataset.index = index;
-    
-    shape.forEach(row => {
-        const rowDiv = document.createElement('div');
-        rowDiv.style.display = 'flex';
-        row.forEach(cell => {
-            const cellDiv = document.createElement('div');
-            cellDiv.className = cell ? 'cell filled' : 'cell empty';
-            rowDiv.appendChild(cellDiv);
-        });
-        div.appendChild(rowDiv);
-    });
-
-    // Drag events
-    div.addEventListener('mousedown', (e) => startDrag(e, shape, index));
-    return div;
-}
-
-// --- МЕХАНИКА DRAG & DROP ---
-function startDrag(e, shape, index) {
-    isDragging = true;
-    draggedShape = shape;
-    
-    // Создаем визуальный клон для перетаскивания
-    dragElement = createShapeElement(shape, index);
-    dragElement.style.position = 'absolute';
-    dragElement.style.pointerEvents = 'none';
-    dragElement.style.opacity = '0.8';
-    document.body.appendChild(dragElement);
-    
-    moveDragElement(e);
-}
-
-document.addEventListener('mousemove', (e) => {
-    if (!isDragging) return;
-    moveDragElement(e);
-    // Тут можно добавить подсветку на поле (preview)
-});
-
-function moveDragElement(e) {
-    dragElement.style.left = e.pageX - 20 + 'px';
-    dragElement.style.top = e.pageY - 20 + 'px';
-}
-
-document.addEventListener('mouseup', (e) => {
-    if (!isDragging) return;
-    
-    // Проверка: попали ли мы на поле?
-    const gridRect = document.getElementById('grid').getBoundingClientRect();
-    let col = Math.floor((e.clientX - gridRect.left) / CELL_SIZE);
-    let row = Math.floor((e.clientY - gridRect.top) / CELL_SIZE);
-
-    if (canPlace(draggedShape, row, col)) {
-        placeShape(draggedShape, row, col);
-        checkLines();
-        removeShapeFromHand();
-    }
-
-    document.body.removeChild(dragElement);
-    isDragging = false;
-    draggedShape = null;
-});
-
-// --- ЛОГИКА ПРАВИЛ ---
-function canPlace(shape, row, col) {
-    for (let r = 0; r < shape.length; r++) {
-        for (let c = 0; c < shape[r].length; c++) {
-            if (shape[r][c]) {
-                let targetR = row + r;
-                let targetC = col + c;
-                if (targetR < 0 || targetR >= GRID_SIZE || targetC < 0 || targetC >= GRID_SIZE || grid[targetR][targetC]) {
-                    return false;
-                }
-            }
-        }
-    }
-    return true;
-}
-
-function placeShape(shape, row, col) {
-    for (let r = 0; r < shape.length; r++) {
-        for (let c = 0; c < shape[r].length; c++) {
-            if (shape[r][c]) grid[row + r][col + c] = 1;
-        }
-    }
-    score += 10;
-    renderGrid();
-    updateGameUI();
-}
-
-function checkLines() {
-    let rowsToDelete = [];
-    let colsToDelete = [];
-
-    // Проверка строк
-    for (let r = 0; r < GRID_SIZE; r++) {
-        if (grid[r].every(cell => cell === 1)) rowsToDelete.push(r);
-    }
-
-    // Проверка столбцов
-    for (let c = 0; c < GRID_SIZE; c++) {
-        let colFull = true;
-        for (let r = 0; r < GRID_SIZE; r++) {
-            if (!grid[r][c]) colFull = false;
-        }
-        if (colFull) colsToDelete.push(c);
-    }
-
-    // Удаление и начисление очков
-    rowsToDelete.forEach(r => grid[r].fill(0));
-    colsToDelete.forEach(c => {
-        for (let r = 0; r < GRID_SIZE; r++) grid[r][c] = 0;
-    });
-
-    if (rowsToDelete.length > 0 || colsToDelete.length > 0) {
-        score += (rowsToDelete.length + colsToDelete.length) * 100;
-        renderGrid();
-        updateGameUI();
-        checkWinCondition();
-    }
-}
-
-// --- ОНЛАЙН ПОИСК (SOCKET.IO) ---
-function startMatchmaking() {
-    document.getElementById('search-animation').style.display = 'block';
-    socket.emit('findMatch', { nick: nickname, elo: elo });
-}
-
-socket.on('matchFound', (data) => {
-    document.getElementById('search-animation').innerHTML = `
-        <h3>Соперник найден!</h3>
-        <p>${data.players[0].nick} vs ${data.players[1].nick}</p>
-    `;
+// --- СТАРТОВАЯ АНИМАЦИЯ ---
+window.onload = () => {
     setTimeout(() => {
-        initOnlineGame(data);
-    }, 5000);
-});
+        splash.style.transition = 'opacity 1s';
+        splash.style.opacity = '0';
+        setTimeout(() => {
+            splash.style.display = 'none';
+            checkUser();
+        }, 1000);
+    }, 3000);
+};
+
+function checkUser() {
+    if (!userData.nick) {
+        nickModal.style.display = 'flex';
+    } else {
+        showApp();
+    }
+}
+
+document.getElementById('save-nick-btn').onclick = () => {
+    const n = document.getElementById('nick-field').value;
+    if (n.length > 2) {
+        userData.nick = n;
+        localStorage.setItem('block_nick', n);
+        nickModal.style.display = 'none';
+        showApp();
+    }
+};
+
+function showApp() {
+    app.style.display = 'flex';
+    updateStatsUI();
+    initChat();
+}
+
+// --- ОБНОВЛЕНИЕ ИНТЕРФЕЙСА ---
+function updateStatsUI() {
+    userData.lvl = Math.floor(userData.elo / 10) + 1;
+    const eloEl = document.getElementById('elo-val');
+    const lvlEl = document.getElementById('lvl-val');
+    
+    eloEl.innerText = userData.elo;
+    lvlEl.innerText = userData.lvl;
+
+    // Смена цвета уровня по твоей схеме
+    lvlEl.className = 'stat-value';
+    if (userData.lvl <= 50) lvlEl.classList.add('lvl-1');
+    else if (userData.lvl <= 150) lvlEl.classList.add('lvl-2');
+    else if (userData.lvl <= 500) lvlEl.classList.add('lvl-3');
+    else lvlEl.classList.add('lvl-4');
+}
+
+// --- ЛОГИКА КНОПОК ---
+document.getElementById('open-modes-btn').onclick = () => {
+    document.getElementById('mode-selection').style.display = 'flex';
+};
+
+function closeModes() {
+    document.getElementById('mode-selection').style.display = 'none';
+}
+
+// --- МЕХАНИКА ИГРЫ ---
+let currentScore = 0;
+let target = 0;
+
+function startGame(type) {
+    closeModes();
+    if (type === 'offline') {
+        document.getElementById('main-menu').style.display = 'none';
+        document.getElementById('game-screen').style.display = 'flex';
+        
+        // Сложность: чем выше ELO, тем выше планка
+        target = 1000 + (userData.lvl * 200);
+        document.getElementById('target-score').innerText = target;
+        currentScore = 0;
+        
+        initGrid();
+        generateShapes();
+    } else {
+        startMatchmaking();
+    }
+}
+
+function initGrid() {
+    const gridEl = document.getElementById('grid');
+    gridEl.innerHTML = '';
+    for (let i = 0; i < 64; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.id = i;
+        gridEl.appendChild(cell);
+    }
+}
+
+// Пример генерации (заглушка для теста)
+function generateShapes() {
+    const bench = document.getElementById('shapes-bench');
+    bench.innerHTML = '<p style="font-size:12px; opacity:0.5;">Перетащите блоки (в разработке)</p>';
+}
+
+function surrender() {
+    document.getElementById('game-screen').style.display = 'none';
+    document.getElementById('main-menu').style.display = 'flex';
+}
+
+// --- ЧАТ (ЛОКАЛЬНЫЙ 5 СООБЩЕНИЙ) ---
+function initChat() {
+    const chatIn = document.getElementById('chat-in');
+    const chatBox = document.getElementById('chat-messages');
+
+    chatIn.onkeypress = (e) => {
+        if (e.key === 'Enter' && chatIn.value.trim()) {
+            let logs = JSON.parse(localStorage.getItem('chat_logs') || "[]");
+            logs.push({ n: userData.nick, m: chatIn.value });
+            if (logs.length > 5) logs.shift();
+            localStorage.setItem('chat_logs', JSON.stringify(logs));
+            chatIn.value = '';
+            renderChat();
+        }
+    };
+    renderChat();
+}
+
+function renderChat() {
+    const chatBox = document.getElementById('chat-messages');
+    let logs = JSON.parse(localStorage.getItem('chat_logs') || "[]");
+    chatBox.innerHTML = logs.map(l => `<div><b style="color:#00c6ff">${l.n}:</b> ${l.m}</div>`).join('');
+}
+
+// --- ОНЛАЙН МОДУЛЬ ---
+function startMatchmaking() {
+    document.getElementById('matchmaking').style.display = 'flex';
+    // Имитация поиска для теста (в реальности тут socket.emit)
+    setTimeout(() => {
+        document.getElementById('search-status').innerText = "Соперник: Player_492 (ELO: 120)";
+        setTimeout(() => {
+            document.getElementById('matchmaking').style.display = 'none';
+            alert('Режим Онлайн в разработке: Ожидание API сервера...');
+        }, 2000);
+    }, 3000);
+}
