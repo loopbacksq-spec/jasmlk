@@ -7,25 +7,17 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { maxHttpBufferSize: 1e6 });
 
-// --- БАЗА ДАННЫХ И ПЕРЕМЕННЫЕ ---
-let usersDB = {}; // { nick: {elo, lastSeen, socketId} }
-let waitingRoom = []; // Список id игроков в поиске
-let activeMatches = {}; // Текущие бои
+let usersDB = {}; 
+let waitingRoom = []; 
+let activeMatches = {}; 
 const SERVER_URL = "https://jasmlk-1.onrender.com";
 
-// Очистка базы (кто не был 48 часов - удаляем)
 setInterval(() => {
     const now = Date.now();
-    for (let nick in usersDB) {
-        if (now - usersDB[nick].lastSeen > 172800000) {
-            delete usersDB[nick];
-            console.log(`[DB] Удален неактивный юзер: ${nick}`);
-        }
-    }
-}, 3600000); // Проверка каждый час
+    for (let n in usersDB) if (now - usersDB[n].lastSeen > 172800000) delete usersDB[n];
+}, 3600000);
 
-// Keep-Alive
-setInterval(() => { https.get(SERVER_URL, (res) => {}).on('error', (e) => {}); }, 600000);
+setInterval(() => { https.get(SERVER_URL, () => {}).on('error', () => {}); }, 600000);
 
 const UI = `
 <!DOCTYPE html>
@@ -33,242 +25,322 @@ const UI = `
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>BLIND SHOT CORE</title>
+    <title>GHOST SHOT</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
-        body { background: #0b141a; color: #fff; height: 100vh; display: flex; justify-content: center; overflow: hidden; }
-        #app { width: 100%; max-width: 450px; background: #0b141a; height: 100vh; display: flex; flex-direction: column; position: relative; border-left: 1px solid #333; border-right: 1px solid #333; }
+        :root { --p: #00e676; --s: #202c33; --bg: #0b141a; --err: #ff5252; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg); color: #fff; height: 100vh; display: flex; justify-content: center; overflow: hidden; }
         
-        /* ЭКРАНЫ */
-        .screen { display: none; flex-direction: column; height: 100%; width: 100%; padding: 20px; animation: fadeIn 0.3s ease; }
+        #app { width: 100%; max-width: 450px; background: var(--bg); height: 100vh; display: flex; flex-direction: column; border-left: 1px solid #222; border-right: 1px solid #222; }
+        
+        .screen { display: none; flex-direction: column; height: 100%; width: 100%; padding: 25px; animation: slide 0.3s ease; }
         .active { display: flex; }
-        @keyframes fadeIn { from {opacity: 0} to {opacity: 1} }
+        @keyframes slide { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
-        /* МЕНЮ И КНОПКИ */
-        .btn { background: #00a884; color: #fff; border: none; padding: 15px; border-radius: 10px; font-weight: bold; cursor: pointer; margin: 10px 0; font-size: 16px; text-transform: uppercase; }
-        .btn:disabled { background: #333; }
-        .stats { background: #202c33; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; }
-        
-        /* ИГРОВОЕ ПОЛЕ */
-        #battle-field { position: relative; width: 300px; height: 300px; margin: 20px auto; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px; }
-        .zone { background: #2a3942; border: 2px dashed #444; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; transition: 0.2s; }
-        .zone:hover { background: #3b4a54; }
-        .player-hub { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80px; height: 80px; background: #00a884; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 10; border: 4px solid #fff; font-size: 10px; text-align: center; }
+        /* ИНТЕРФЕЙС */
+        .card { background: #111b21; border: 1px solid #2a3942; border-radius: 20px; padding: 20px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .btn { background: var(--p); color: #000; border: none; padding: 18px; border-radius: 15px; font-weight: 800; cursor: pointer; margin: 8px 0; font-size: 14px; text-transform: uppercase; transition: 0.3s; }
+        .btn:active { transform: scale(0.95); opacity: 0.8; }
+        .btn-sec { background: #2a3942; color: #fff; }
+
+        /* ПОЛЕ БОЯ */
+        #field { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 30px 0; position: relative; }
+        .zone { aspect-ratio: 1/1; background: #202c33; border: 2px solid #3b4a54; border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; transition: 0.2s; }
+        .zone.selected { border-color: var(--p); background: rgba(0,230,118,0.1); }
+        .avatar { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 70px; height: 70px; background: var(--p); border-radius: 50%; border: 5px solid var(--bg); box-shadow: 0 0 20px var(--p); z-index: 10; display: flex; align-items: center; justify-content: center; color: #000; font-weight: bold; font-size: 12px; text-align: center; }
 
         /* ЧАТ */
-        #chat-window { flex: 1; overflow-y: auto; background: #000; padding: 10px; border-radius: 10px; margin-bottom: 10px; }
-        #chat-input { background: #2a3942; border: none; color: #fff; padding: 12px; border-radius: 5px; width: 100%; }
+        #chat-box { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+        .chat-m { padding: 10px 15px; border-radius: 15px; max-width: 80%; font-size: 14px; }
+        .m-in { background: #202c33; align-self: flex-start; }
+        .m-out { background: #005c4b; align-self: flex-end; }
 
-        /* АНИМАЦИЯ ПУЛИ */
-        .bullet { position: absolute; width: 15px; height: 15px; background: #ffd700; border-radius: 50%; box-shadow: 0 0 10px #f00; z-index: 100; transition: all 0.5s cubic-bezier(0.6, -0.28, 0.735, 0.045); }
+        /* МОДАЛКА СТАТИСТИКИ */
+        #modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; align-items: center; justify-content: center; padding: 20px; }
+        
+        .bullet { position: absolute; width: 20px; height: 6px; background: #fff; border-radius: 3px; z-index: 100; box-shadow: 0 0 15px #fff; pointer-events: none; }
     </style>
 </head>
 <body>
     <div id="app">
         <div id="scr-reg" class="screen active">
-            <h2 style="text-align:center; margin-bottom:30px">РЕГИСТРАЦИЯ</h2>
-            <input type="text" id="reg-nick" placeholder="Введи никнейм..." class="btn" style="background:#2a3942; cursor:text">
-            <button class="btn" onclick="register()">СОЗДАТЬ АККАУНТ</button>
+            <h1 style="margin-top: 50px; text-align: center;">GHOST<br><span style="color:var(--p)">SHOT</span></h1>
+            <div class="card" style="margin-top: 40px;">
+                <input type="text" id="nick-in" placeholder="Псевдоним" style="width:100%; background:transparent; border:none; color:#fff; font-size:18px; outline:none; text-align:center;">
+            </div>
+            <button class="btn" onclick="reg()">НАЧАТЬ ПУТЬ</button>
         </div>
 
         <div id="scr-menu" class="screen">
-            <div class="stats">
-                <h3 id="my-nick">...</h3>
-                <p>ELO: <span id="my-elo">0</span></p>
+            <div class="card">
+                <p style="color:#8696a0">ПРОФИЛЬ</p>
+                <h2 id="u-nick">...</h2>
+                <h1 id="u-elo" style="color:var(--p); font-size:40px">0 ELO</h1>
             </div>
-            <button class="btn" onclick="showScreen('scr-match')">ИГРАТЬ</button>
-            <button class="btn" onclick="showScreen('scr-chat')">ЧАТ</button>
-            <button class="btn" onclick="showScreen('scr-top')" style="background:#202c33">РЕЙТИНГ ТОП-3</button>
+            <button class="btn" onclick="openMatch()">В БОЙ</button>
+            <button class="btn btn-sec" onclick="openChat()">ОБЩИЙ ЧАТ</button>
+            <button class="btn btn-sec" onclick="openTop()">РЕЙТИНГ</button>
         </div>
 
-        <div id="scr-match" class="screen">
-            <button class="btn" onclick="startSearch()">ОНЛАЙН (ПОИСК)</button>
-            <button class="btn" onclick="startOffline()">ОФЛАЙН (БОТ)</button>
-            <button class="btn" onclick="showScreen('scr-menu')" style="background:transparent">НАЗАД</button>
-            <div id="search-status" style="text-align:center; color:#00a884; margin-top:20px"></div>
+        <div id="scr-find" class="screen">
+            <h2 style="text-align:center; margin-top:100px;">ПОИСК ЦЕЛИ</h2>
+            <div id="loader" style="margin: 40px auto; width: 50px; height: 50px; border: 4px solid #222; border-top-color: var(--p); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <button class="btn btn-sec" onclick="cancelSearch()">ОТМЕНА</button>
+            <button class="btn" onclick="startBot()">ИГРАТЬ С БОТОМ</button>
         </div>
 
-        <div id="scr-battle" class="screen">
-            <div id="turn-info" style="text-align:center; font-size:18px; color:#ffd700; margin-bottom:10px">...</div>
-            <div id="battle-container" style="position:relative">
-                <div id="battle-field">
-                    <div class="zone" onclick="doAction(0)" id="z0">1</div>
-                    <div class="zone" onclick="doAction(1)" id="z1">2</div>
-                    <div class="zone" onclick="doAction(2)" id="z2">3</div>
-                    <div class="zone" onclick="doAction(3)" id="z3">4</div>
-                    <div id="hero" class="player-hub">ТЫ</div>
+        <div id="scr-game" class="screen" style="padding: 15px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span id="opp-info">ОППОНЕНТ: ...</span>
+                <span id="timer" style="color:var(--err); font-weight:bold; font-size:20px;">10s</span>
+            </div>
+            <h2 id="status" style="text-align:center; margin-top:20px; color:var(--p)">ЖДЕМ ХОДА...</h2>
+            
+            <div id="field-wrap" style="position:relative; margin-top:40px;">
+                <div id="field">
+                    <div class="zone" onclick="clickZone(0)" id="z0">1</div>
+                    <div class="zone" onclick="clickZone(1)" id="z1">2</div>
+                    <div class="zone" onclick="clickZone(2)" id="z2">3</div>
+                    <div class="zone" onclick="clickZone(3)" id="z3">4</div>
+                    <div id="me" class="avatar">Я</div>
                 </div>
             </div>
-            <div id="timer" style="text-align:center; font-size:24px; font-weight:bold">10</div>
         </div>
 
         <div id="scr-chat" class="screen">
-            <div id="chat-window"></div>
-            <input type="text" id="chat-input" placeholder="Сообщение...">
-            <button class="btn" onclick="showScreen('scr-menu')" style="margin-top:10px">НАЗАД</button>
+            <div id="chat-box"></div>
+            <div style="display:flex; gap:10px; padding:10px;">
+                <input id="chat-in" type="text" placeholder="Сообщение..." style="flex:1; background:#202c33; border:none; border-radius:10px; color:#fff; padding:10px;">
+                <button onclick="sendMsg()" class="btn" style="padding:10px 20px; margin:0;">➤</button>
+            </div>
+            <button class="btn btn-sec" onclick="showScreen('scr-menu')">В МЕНЮ</button>
         </div>
 
         <div id="scr-top" class="screen">
-            <h2 style="text-align:center">ТОП ЛУЧШИХ</h2>
-            <div id="top-list" style="margin-top:20px"></div>
-            <button class="btn" onclick="showScreen('scr-menu')">В МЕНЮ</button>
+            <h2>ТОП-3 КИЛЛЕРОВ</h2>
+            <div id="top-list" style="margin-top:20px;"></div>
+            <button class="btn btn-sec" onclick="showScreen('scr-menu')">НАЗАД</button>
+        </div>
+    </div>
+
+    <div id="modal">
+        <div class="card" style="width:100%; max-width:320px; text-align:center;">
+            <h1 id="res-title">ПОБЕДА!</h1>
+            <p id="res-elo" style="font-size:24px; margin:20px 0; color:var(--p)">+25 ELO</p>
+            <p id="res-stats" style="color:#8696a0">Ходов: 3</p>
+            <button class="btn" style="width:100%" onclick="closeBattle()">ВЕРНУТЬСЯ В МЕНЮ</button>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        let myNick = '', myElo = 0, currentRole = '', canClick = false;
+        let myNick = '', myElo = 0, isShooter = false, canMove = false, selZone = -1, battleActive = false;
 
         function showScreen(id) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(id).classList.add('active');
         }
 
-        function register() {
-            const n = document.getElementById('reg-nick').value.trim();
+        function reg() {
+            const n = document.getElementById('nick-in').value.trim();
             if(n) socket.emit('reg', n);
         }
 
-        socket.on('reg_ok', (data) => {
-            myNick = data.nick; myElo = data.elo;
-            document.getElementById('my-nick').innerText = myNick;
-            document.getElementById('my-elo').innerText = myElo;
+        socket.on('reg_ok', d => {
+            myNick = d.nick; myElo = d.elo;
+            document.getElementById('u-nick').innerText = myNick;
+            document.getElementById('u-elo').innerText = myElo + ' ELO';
             showScreen('scr-menu');
         });
 
-        socket.on('reg_err', (msg) => alert(msg));
+        socket.on('reg_err', m => alert(m));
 
-        function startSearch() {
-            document.getElementById('search-status').innerText = 'ПОИСК ИГРОКОВ...';
-            socket.emit('find_match');
-        }
+        function openMatch() { showScreen('scr-find'); socket.emit('find'); }
+        function cancelSearch() { socket.emit('cancel_find'); showScreen('scr-menu'); }
+        function startBot() { socket.emit('bot_match'); showScreen('scr-game'); }
 
-        socket.on('match_found', (data) => {
-            document.getElementById('search-status').innerText = 'ИГРОК НАЙДЕН! ЗАПУСК...';
-            setTimeout(() => {
-                showScreen('scr-battle');
-                document.getElementById('hero').innerText = myNick;
-            }, 2000);
+        socket.on('match_start', d => {
+            battleActive = true;
+            document.getElementById('opp-info').innerText = 'ПРОТИВ: ' + d.oppNick;
+            showScreen('scr-game');
         });
 
-        socket.on('turn', (d) => {
-            document.getElementById('turn-info').innerText = d.isShooter ? 'ТВОЙ ХОД: СТРЕЛЯЙ!' : 'ПРЯЧЬСЯ!';
-            currentRole = d.isShooter ? 'shooter' : 'hider';
-            canClick = true;
+        socket.on('turn', d => {
+            isShooter = d.role === 'shooter';
+            canMove = true;
+            selZone = -1;
+            document.querySelectorAll('.zone').forEach(z => z.classList.remove('selected'));
+            document.getElementById('status').innerText = isShooter ? 'ТВОЙ ХОД: СТРЕЛЯЙ!' : 'ПРЯЧЬСЯ!';
             startTimer(10);
         });
 
-        function startTimer(sec) {
-            let t = sec;
-            const el = document.getElementById('timer');
-            const intr = setInterval(() => {
-                t--; el.innerText = t;
-                if(t <= 0 || !canClick) clearInterval(intr);
+        function clickZone(idx) {
+            if(!canMove) return;
+            selZone = idx;
+            document.querySelectorAll('.zone').forEach(z => z.classList.remove('selected'));
+            document.getElementById('z'+idx).classList.add('selected');
+            canMove = false;
+            socket.emit('action', { zone: idx });
+            document.getElementById('status').innerText = 'ОЖИДАНИЕ...';
+        }
+
+        socket.on('anim', d => {
+            const b = document.createElement('div');
+            b.className = 'bullet';
+            const me = document.getElementById('me').getBoundingClientRect();
+            const target = document.getElementById('z'+d.to).getBoundingClientRect();
+            
+            b.style.left = (me.left + 25) + 'px'; b.style.top = (me.top + 30) + 'px';
+            document.body.appendChild(b);
+
+            const angle = Math.atan2(target.top - me.top, target.left - me.left) * 180 / Math.PI;
+            b.style.transform = \`rotate(\${angle}deg)\`;
+
+            setTimeout(() => {
+                b.style.transition = '0.4s ease-in';
+                b.style.left = target.left + 'px'; b.style.top = target.top + 'px';
+            }, 50);
+
+            setTimeout(() => { b.remove(); }, 500);
+        });
+
+        socket.on('end', d => {
+            battleActive = false;
+            document.getElementById('modal').style.display = 'flex';
+            document.getElementById('res-title').innerText = d.win ? 'ПОБЕДА!' : 'ПОРАЖЕНИЕ';
+            document.getElementById('res-title').style.color = d.win ? 'var(--p)' : 'var(--err)';
+            document.getElementById('res-elo').innerText = (d.elo > 0 ? '+' : '') + d.elo + ' ELO';
+            document.getElementById('res-stats').innerText = \`Ходов сделано: \${d.steps}\`;
+            myElo += d.elo;
+            document.getElementById('u-elo').innerText = myElo + ' ELO';
+        });
+
+        function closeBattle() { document.getElementById('modal').style.display = 'none'; showScreen('scr-menu'); }
+
+        let tInt;
+        function startTimer(s) {
+            clearInterval(tInt);
+            let left = s;
+            document.getElementById('timer').innerText = left + 's';
+            tInt = setInterval(() => {
+                left--;
+                document.getElementById('timer').innerText = left + 's';
+                if(left <= 0 || !battleActive) clearInterval(tInt);
             }, 1000);
         }
 
-        function doAction(zoneIdx) {
-            if(!canClick) return;
-            canClick = false;
-            socket.emit('battle_action', { zone: zoneIdx, role: currentRole });
-        }
-
-        socket.on('shot_anim', (d) => {
-            const bullet = document.createElement('div');
-            bullet.className = 'bullet';
-            const hero = document.getElementById('hero').getBoundingClientRect();
-            const target = document.getElementById('z' + d.toZone).getBoundingClientRect();
-            
-            bullet.style.left = '50%'; bullet.style.top = '50%';
-            document.getElementById('battle-container').appendChild(bullet);
-
-            setTimeout(() => {
-                bullet.style.left = (target.left - hero.left + 140) + 'px';
-                bullet.style.top = (target.top - hero.top + 140) + 'px';
-            }, 50);
-
-            setTimeout(() => {
-                bullet.remove();
-                if(d.hit) alert('ПОПАДАНИЕ! ИГРОК УБИТ');
-                else alert('ПРОМАХ!');
-            }, 600);
-        });
-
         // Чат
-        document.getElementById('chat-input').onkeypress = (e) => {
-            if(e.key === 'Enter') {
-                socket.emit('msg', { n: myNick, t: e.target.value });
-                e.target.value = '';
-            }
-        };
-        socket.on('msg', (d) => {
-            const win = document.getElementById('chat-window');
-            win.innerHTML += \`<div><b>\${d.n}:</b> \${d.t}</div>\`;
-            win.scrollTop = win.scrollHeight;
-        });
-
-        // Топ
-        socket.on('top_list', (list) => {
-            const el = document.getElementById('top-list');
-            el.innerHTML = list.map((u, i) => \`<div class="stats">\${i+1}. \${u.nick} - ELO: \${u.elo}</div>\`).join('');
-        });
-        setInterval(() => socket.emit('get_top'), 5000);
-
-        function startOffline() {
-            alert('Бот скоро будет готов! Используй онлайн режим пока что.');
+        function openChat() { showScreen('scr-chat'); socket.emit('get_chat'); }
+        function sendMsg() { 
+            const t = document.getElementById('chat-in').value; 
+            if(t) { socket.emit('msg', { n: myNick, t }); document.getElementById('chat-in').value = ''; }
         }
+        socket.on('msg', d => {
+            const b = document.getElementById('chat-box');
+            b.innerHTML += \`<div class="chat-m \${d.n === myNick ? 'm-out' : 'm-in'}"><b>\${d.n}:</b> \${d.t}</div>\`;
+            b.scrollTop = b.scrollHeight;
+        });
+
+        function openTop() { showScreen('scr-top'); socket.emit('get_top'); }
+        socket.on('top_list', l => {
+            document.getElementById('top-list').innerHTML = l.map((u, i) => \`<div class="card" style="padding:10px">#\${i+1} \${u.nick} - \${u.elo} ELO</div>\`).join('');
+        });
     </script>
 </body>
 </html>
 `;
 
 io.on('connection', (socket) => {
-    socket.on('reg', (nick) => {
-        if (usersDB[nick]) return socket.emit('reg_err', 'Ник занят!');
-        usersDB[nick] = { elo: 0, lastSeen: Date.now(), socketId: socket.id };
-        socket.nick = nick;
-        socket.emit('reg_ok', { nick, elo: 0 });
+    socket.on('reg', (n) => {
+        if (usersDB[n]) return socket.emit('reg_err', 'НИК ЗАНЯТ');
+        usersDB[n] = { nick: n, elo: 0, lastSeen: Date.now(), sid: socket.id };
+        socket.nick = n; socket.emit('reg_ok', { nick: n, elo: 0 });
     });
 
-    socket.on('find_match', () => {
-        if (!socket.nick) return;
-        waitingRoom.push(socket.id);
-        if (waitingRoom.length >= 2) {
-            const p1 = waitingRoom.shift();
-            const p2 = waitingRoom.shift();
-            const matchId = `m_${Date.now()}`;
-            activeMatches[matchId] = { p1, p2, turn: p1, shots: 0 };
-            
-            io.to(p1).emit('match_found', { opp: usersDB[socket.nick].elo });
-            io.to(p2).emit('match_found', { opp: usersDB[socket.nick].elo });
-
-            setTimeout(() => {
-                io.to(p1).emit('turn', { isShooter: true });
-                io.to(p2).emit('turn', { isShooter: false });
-            }, 4000);
+    socket.on('find', () => {
+        if(!socket.nick) return;
+        waitingRoom.push(socket);
+        if(waitingRoom.length >= 2) {
+            const p1 = waitingRoom.shift(); const p2 = waitingRoom.shift();
+            const mid = 'm_' + Date.now();
+            activeMatches[mid] = { 
+                p1: p1.id, p2: p2.id, 
+                p1Data: { nick: p1.nick, sel: -1 }, 
+                p2Data: { nick: p2.nick, sel: -1 },
+                shooter: p1.id, steps: 0 
+            };
+            p1.mid = mid; p2.mid = mid;
+            p1.emit('match_start', { oppNick: p2.nick });
+            p2.emit('match_start', { oppNick: p1.nick });
+            startRound(mid);
         }
     });
 
-    socket.on('battle_action', (data) => {
-        // Логика выстрела/прятки (упрощенно для примера)
-        // В полноценной версии тут сверяются данные обоих игроков
-        socket.broadcast.emit('shot_anim', { toZone: data.zone, hit: Math.random() > 0.5 });
+    socket.on('bot_match', () => {
+        const mid = 'bot_' + Date.now();
+        activeMatches[mid] = { 
+            p1: socket.id, p2: 'bot', 
+            p1Data: { nick: socket.nick, sel: -1 }, 
+            p2Data: { nick: 'БОТ-УБИЙЦА', sel: -1 },
+            shooter: socket.id, steps: 0, isBot: true 
+        };
+        socket.mid = mid;
+        socket.emit('match_start', { oppNick: 'БОТ-УБИЙЦА' });
+        startRound(mid);
     });
 
-    socket.on('msg', (d) => io.emit('msg', d));
+    function startRound(mid) {
+        const m = activeMatches[mid]; if(!m) return;
+        m.p1Data.sel = -1; m.p2Data.sel = -1;
+        io.to(m.p1).emit('turn', { role: m.shooter === m.p1 ? 'shooter' : 'hider' });
+        if(!m.isBot) io.to(m.p2).emit('turn', { role: m.shooter === m.p2 ? 'shooter' : 'hider' });
+        else { m.p2Data.sel = Math.floor(Math.random()*4); checkReady(mid); }
+    }
 
+    socket.on('action', d => {
+        const m = activeMatches[socket.mid]; if(!m) return;
+        if(socket.id === m.p1) m.p1Data.sel = d.zone;
+        else m.p2Data.sel = d.zone;
+        checkReady(socket.mid);
+    });
+
+    function checkReady(mid) {
+        const m = activeMatches[mid];
+        if(m.p1Data.sel !== -1 && m.p2Data.sel !== -1) {
+            m.steps++;
+            const shootZone = m.shooter === m.p1 ? m.p1Data.sel : m.p2Data.sel;
+            const hideZone = m.shooter === m.p1 ? m.p2Data.sel : m.p1Data.sel;
+            
+            io.to(m.p1).emit('anim', { to: shootZone });
+            if(!m.isBot) io.to(m.p2).emit('anim', { to: shootZone });
+
+            setTimeout(() => {
+                if(shootZone === hideZone) {
+                    const winner = m.shooter;
+                    const loser = winner === m.p1 ? m.p2 : m.p1;
+                    const eloGain = Math.max(5, 30 - m.steps);
+                    
+                    if(usersDB[m.p1Data.nick]) usersDB[m.p1Data.nick].elo += (winner === m.p1 ? eloGain : -10);
+                    if(!m.isBot && usersDB[m.p2Data.nick]) usersDB[m.p2Data.nick].elo += (winner === m.p2 ? eloGain : -10);
+                    
+                    io.to(m.p1).emit('end', { win: winner === m.p1, elo: winner === m.p1 ? eloGain : -10, steps: m.steps });
+                    if(!m.isBot) io.to(m.p2).emit('end', { win: winner === m.p2, elo: winner === m.p2 ? eloGain : -10, steps: m.steps });
+                    delete activeMatches[mid];
+                } else {
+                    m.shooter = (m.shooter === m.p1 ? m.p2 : m.p1);
+                    startRound(mid);
+                }
+            }, 1000);
+        }
+    }
+
+    socket.on('msg', d => io.emit('msg', d));
     socket.on('get_top', () => {
-        const top = Object.entries(usersDB)
-            .map(([nick, data]) => ({ nick, elo: data.elo }))
-            .sort((a, b) => b.elo - a.elo)
-            .slice(0, 3);
+        const top = Object.values(usersDB).sort((a,b) => b.elo - a.elo).slice(0,3);
         socket.emit('top_list', top);
     });
-
-    socket.on('disconnect', () => {
-        waitingRoom = waitingRoom.filter(id => id !== socket.id);
-    });
+    socket.on('cancel_find', () => { waitingRoom = waitingRoom.filter(s => s.id !== socket.id); });
 });
 
 app.get('*', (req, res) => res.send(UI));
