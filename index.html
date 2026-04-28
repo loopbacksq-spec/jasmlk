@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Messenger V1</title>
     <style>
         :root {
@@ -21,7 +21,16 @@
         }
 
         * { box-sizing: border-box; transition: background 0.2s, color 0.2s; }
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; }
+        
+        /* Фикс для мобильного Google Chrome (динамическая высота) */
+        body, html { 
+            margin: 0; padding: 0; 
+            height: 100vh; height: 100svh; 
+            overflow: hidden; 
+            background: var(--bg); 
+            color: var(--text); 
+            font-family: -apple-system, sans-serif; 
+        }
 
         /* СПЛЕШ-ЭКРАН */
         #splash {
@@ -32,17 +41,18 @@
         @keyframes appear { to { opacity: 1; transform: translateY(0); } }
 
         /* ГЛАВНЫЙ ИНТЕРФЕЙС */
-        #app { display: none; height: 100vh; flex-direction: column; }
+        #app { display: none; height: 100%; flex-direction: column; }
 
         header {
             height: 60px; background: var(--panel); display: flex;
             align-items: center; padding: 0 15px; gap: 15px;
             border-bottom: 1px solid var(--accent);
+            flex-shrink: 0;
         }
 
         .menu-btn { font-size: 24px; cursor: pointer; background: none; border: none; color: var(--text); }
         .search-box { flex-grow: 1; display: flex; gap: 5px; }
-        input { background: var(--accent); border: none; color: var(--text); padding: 8px 12px; border-radius: 8px; outline: none; width: 100%; }
+        input { background: var(--accent); border: none; color: var(--text); padding: 8px 12px; border-radius: 8px; outline: none; width: 100%; font-size: 16px; }
 
         .main-content { flex-grow: 1; display: flex; overflow: hidden; position: relative; }
         #chat-list { width: 100%; max-width: 400px; border-right: 1px solid var(--accent); overflow-y: auto; background: var(--bg); }
@@ -76,6 +86,9 @@
         /* ВИДЕО МОД */
         .video-mode-active .user-id-text { filter: blur(5px); }
         .video-mode-active .user-id-text::after { content: "****"; filter: none; margin-left: -20px; }
+        
+        /* ФИКС ДЛЯ КНОПОК */
+        button { cursor: pointer; border: none; border-radius: 8px; }
     </style>
 </head>
 <body>
@@ -87,24 +100,22 @@
     <header>
         <button class="menu-btn" onclick="toggleMenu()">☰</button>
         <div class="search-box">
-            <input type="number" id="searchId" placeholder="Введите ID для поиска...">
-            <button onclick="findUser()" style="background:var(--blue); border:none; color:white; border-radius:8px; padding:0 15px; cursor:pointer;">Поиск</button>
+            <input type="number" id="searchId" placeholder="Введите ID...">
+            <button onclick="findUser()" style="background:var(--blue); color:white; padding:0 15px;">Найти</button>
         </div>
     </header>
 
     <div class="main-content">
         <div id="chat-list"></div>
-        
         <div id="chat-window">
-            <div id="chat-header" style="padding:15px; background:var(--panel); display:flex; align-items:center; gap:10px;">
-                <button onclick="closeChat()" style="background:none; border:none; color:var(--text); font-size:20px; cursor:pointer;">⬅</button>
+            <div id="chat-header" style="padding:15px; background:var(--panel); display:flex; align-items:center; gap:10px; flex-shrink:0;">
+                <button onclick="closeChat()" style="background:none; color:var(--text); font-size:20px;">⬅</button>
                 <span id="target-name" class="user-id-text">Выберите чат</span>
-                <span id="typing-status" style="font-size:12px; color:var(--blue); margin-left:10px;"></span>
             </div>
             <div class="messages" id="message-container"></div>
-            <div style="padding:15px; display:flex; gap:10px; background:var(--panel);">
-                <input type="text" id="msgInput" placeholder="Введите сообщение..." onkeypress="handleKeyPress(event)">
-                <button onclick="sendMessage()" style="padding:10px 20px; background:var(--blue); border:none; color:white; border-radius:8px; cursor:pointer;">Отправить</button>
+            <div style="padding:15px; display:flex; gap:10px; background:var(--panel); flex-shrink:0;">
+                <input type="text" id="msgInput" placeholder="Сообщение..." onkeypress="handleKeyPress(event)">
+                <button onclick="sendMessage()" style="padding:10px 20px; background:var(--blue); color:white;">👉</button>
             </div>
         </div>
     </div>
@@ -112,18 +123,18 @@
 
 <div id="sidebar">
     <h2 style="margin-top:0">Меню</h2>
-    <p>Ваш ID: <b id="my-id-display" class="user-id-text">0000</b></p>
-    <p>Сервер: <span id="status-tag">Подключение...</span></p>
+    <p>Мой ID: <b id="my-id-display" class="user-id-text">0000</b></p>
+    <p>Сервер: <span id="status-tag">...</span></p>
     <p>Пинг: <span id="ping-tag">0</span> ms</p>
     <hr style="border:0; border-top:1px solid var(--accent)">
-    <button onclick="toggleTheme()" style="width:100%; padding:12px; margin-bottom:10px; cursor:pointer; background:var(--accent); color:var(--text); border:none; border-radius:8px;">Сменить тему</button>
-    <button onclick="resetMyId()" style="width:100%; padding:12px; margin-bottom:10px; cursor:pointer; background:#dc3545; color:white; border:none; border-radius:8px;">Сбросить ID</button>
-    <label style="display:flex; align-items:center; gap:10px; margin:20px 0; cursor:pointer;">
-        <input type="checkbox" id="videoModeCheck" onchange="toggleVideoMode()"> Видео Мод (Скрыть ID)
+    <button onclick="toggleTheme()" style="width:100%; padding:12px; margin-bottom:10px; background:var(--accent); color:var(--text);">Тема</button>
+    <button onclick="resetMyId()" style="width:100%; padding:12px; margin-bottom:10px; background:#dc3545; color:white;">Сброс ID</button>
+    <label style="display:flex; align-items:center; gap:10px; margin:20px 0;">
+        <input type="checkbox" id="videoModeCheck" onchange="toggleVideoMode()"> Видео Мод
     </label>
     <hr style="border:0; border-top:1px solid var(--accent)">
     <h4>Калькулятор</h4>
-    <input type="text" id="calcInput" placeholder="Пример: 2+2*2" oninput="runCalc()" style="margin-bottom:10px">
+    <input type="text" id="calcInput" placeholder="2+2" oninput="runCalc()" style="margin-bottom:10px">
     <div id="calcResult" style="font-size:18px; font-weight:bold; color:var(--blue)"></div>
 </div>
 
@@ -133,13 +144,12 @@
     let myId = localStorage.getItem('messenger_id') || Math.floor(1000 + Math.random() * 9000).toString();
     let currentChatId = null;
     let chats = JSON.parse(localStorage.getItem('chats_history') || '{}');
+    let onlineUsers = []; // Список тех, кто реально в сети
 
-    // Инициализация при загрузке
     window.onload = () => {
         localStorage.setItem('messenger_id', myId);
         document.getElementById('my-id-display').innerText = myId;
         
-        // Тайминги: 2 сек черный экран, через 2 сек текст, через 5 сек меню (всего 7 сек от старта)
         setTimeout(() => {
             document.getElementById('splash').style.display = 'none';
             document.getElementById('app').style.display = 'flex';
@@ -149,60 +159,56 @@
         }, 5000); 
     };
 
+    // Слушаем список онлайн пользователей от сервера
+    socket.on('updateUserList', (list) => {
+        onlineUsers = list;
+    });
+
     // --- ЛОГИКА ЧАТОВ ---
     function findUser() {
         const idInput = document.getElementById('searchId');
         const id = idInput.value.trim();
         
-        if (!id || id === myId) {
-            alert("Введите чужой ID");
-            return;
-        }
+        if (!id || id === myId) return alert("Введите чужой ID");
 
-        if (!chats[id]) {
-            chats[id] = [];
-            saveData();
-        }
-        
-        openChat(id);
-        renderChatList();
-        idInput.value = '';
+        // ПРОВЕРКА: Если ты не общался с ним раньше, проверяем, в сети ли он
+        // (Для полноценной проверки всех ID нужна база данных, но в текущем "бесплатном" варианте 
+        // мы проверяем тех, кто подключен к сокетам прямо сейчас)
+        socket.emit('checkUser', id, (exists) => {
+            if (exists || chats[id]) {
+                if (!chats[id]) chats[id] = [];
+                saveData();
+                openChat(id);
+                renderChatList();
+                idInput.value = '';
+            } else {
+                alert("Пользователь с таким ID не найден в сети!");
+            }
+        });
     }
 
     function openChat(id) {
         currentChatId = id;
         document.getElementById('target-name').innerText = "ID: " + id;
         document.getElementById('message-container').innerHTML = '';
-        
-        // Загрузка сообщений из локальной памяти
         if (chats[id]) {
-            chats[id].forEach(msg => {
-                addMessageToUI(msg.text, msg.from === myId ? 'sent' : 'received', msg.time);
-            });
+            chats[id].forEach(msg => addMessageToUI(msg.text, msg.from === myId ? 'sent' : 'received', msg.time));
         }
-        
-        if (window.innerWidth <= 768) {
-            document.getElementById('chat-window').classList.add('active');
-        }
+        if (window.innerWidth <= 768) document.getElementById('chat-window').classList.add('active');
     }
 
     function sendMessage() {
         const input = document.getElementById('msgInput');
         const text = input.value.trim();
-        
         if (!text || !currentChatId) return;
 
         const time = new Date().toLocaleTimeString().slice(0, 5);
         const msgData = { from: myId, to: currentChatId, text, time };
 
-        // Отправка на сервер
         socket.emit('sendMessage', msgData);
-
-        // Сохранение себе локально
         if (!chats[currentChatId]) chats[currentChatId] = [];
         chats[currentChatId].push(msgData);
         saveData();
-
         addMessageToUI(text, 'sent', time);
         renderChatList();
         input.value = '';
@@ -210,37 +216,20 @@
 
     socket.on('newMessage', (data) => {
         const senderId = data.from;
-        
         if (!chats[senderId]) chats[senderId] = [];
         chats[senderId].push(data);
         saveData();
         renderChatList();
-
-        if (currentChatId === senderId) {
-            addMessageToUI(data.text, 'received', data.time);
-        }
+        if (currentChatId === senderId) addMessageToUI(data.text, 'received', data.time);
     });
 
     function renderChatList() {
         const container = document.getElementById('chat-list');
         container.innerHTML = '';
-        const keys = Object.keys(chats);
-
-        if (keys.length === 0) {
-            container.innerHTML = '<div style="padding:20px; opacity:0.5; text-align:center;">Нет чатов</div>';
-            return;
-        }
-
-        keys.forEach(id => {
-            const history = chats[id];
-            const lastMsg = history.length > 0 ? history[history.length - 1].text : "Новый чат";
-            
+        Object.keys(chats).forEach(id => {
             const div = document.createElement('div');
             div.className = 'chat-item';
-            div.innerHTML = `
-                <div class="user-id-text" style="font-weight:bold">ID: ${id}</div>
-                <div style="font-size:12px; opacity:0.6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${lastMsg}</div>
-            `;
+            div.innerHTML = `<div class="user-id-text"><b>ID: ${id}</b></div><div style="font-size:12px; opacity:0.5">Чат активен</div>`;
             div.onclick = () => openChat(id);
             container.appendChild(div);
         });
@@ -255,71 +244,27 @@
         container.scrollTop = container.scrollHeight;
     }
 
-    // --- ФУНКЦИИ МЕНЮ ---
+    // --- СЕРВИСНЫЕ ФУНКЦИИ ---
     function toggleMenu() {
         const sb = document.getElementById('sidebar');
-        const over = document.querySelector('.overlay');
-        sb.classList.toggle('open');
-        over.style.display = sb.classList.contains('open') ? 'block' : 'none';
+        document.querySelector('.overlay').style.display = sb.classList.toggle('open') ? 'block' : 'none';
     }
-
-    function toggleTheme() {
-        document.body.classList.toggle('light-theme');
-    }
-
-    function toggleVideoMode() {
-        const isChecked = document.getElementById('videoModeCheck').checked;
-        if (isChecked) {
-            document.body.classList.add('video-mode-active');
-        } else {
-            document.body.classList.remove('video-mode-active');
-        }
-    }
-
-    function resetMyId() {
-        if(confirm("Вы уверены? Все чаты будут удалены при смене ID!")) {
-            localStorage.clear();
-            location.reload();
-        }
-    }
-
+    function toggleTheme() { document.body.classList.toggle('light-theme'); }
+    function toggleVideoMode() { document.body.classList.toggle('video-mode-active', document.getElementById('videoModeCheck').checked); }
+    function resetMyId() { if(confirm("Сбросить ID?")) { localStorage.clear(); location.reload(); } }
     function runCalc() {
-        const input = document.getElementById('calcInput').value;
-        const resDiv = document.getElementById('calcResult');
-        try {
-            // Безопасное вычисление простых выражений
-            const result = eval(input.replace(/[^-()\d/*+.]/g, ''));
-            resDiv.innerText = result !== undefined ? "= " + result : "";
-        } catch (e) {
-            resDiv.innerText = "";
-        }
+        try { document.getElementById('calcResult').innerText = "= " + eval(document.getElementById('calcInput').value.replace(/[^-()\d/*+.]/g, '')); } catch(e) {}
     }
-
     function startPinger() {
         setInterval(() => {
-            if (socket.connected) {
-                document.getElementById('status-tag').innerText = "ОНЛАЙН";
-                document.getElementById('status-tag').style.color = "#00ff00";
-                document.getElementById('ping-tag').innerText = Math.floor(Math.random() * 20 + 10);
-            } else {
-                document.getElementById('status-tag').innerText = "ОФЛАЙН";
-                document.getElementById('status-tag').style.color = "#ff4444";
-                document.getElementById('ping-tag').innerText = "—";
-            }
+            document.getElementById('status-tag').innerText = socket.connected ? "ОНЛАЙН" : "ОФЛАЙН";
+            document.getElementById('status-tag').style.color = socket.connected ? "#00ff00" : "#ff4444";
+            document.getElementById('ping-tag').innerText = Math.floor(Math.random() * 25 + 5);
         }, 2000);
     }
-
-    function handleKeyPress(e) {
-        if (e.key === 'Enter') sendMessage();
-    }
-
-    function closeChat() {
-        document.getElementById('chat-window').classList.remove('active');
-    }
-
-    function saveData() {
-        localStorage.setItem('chats_history', JSON.stringify(chats));
-    }
+    function handleKeyPress(e) { if (e.key === 'Enter') sendMessage(); }
+    function closeChat() { document.getElementById('chat-window').classList.remove('active'); }
+    function saveData() { localStorage.setItem('chats_history', JSON.stringify(chats)); }
 </script>
 </body>
 </html>
