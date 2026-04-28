@@ -1,127 +1,219 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Messenger V1</title>
     <style>
-        :root { --bg: #000; --text: #fff; --accent: #333; }
-        body.light { --bg: #fff; --text: #000; --accent: #eee; }
-        
-        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; transition: 0.3s; }
-        
-        /* Сплеш-экран */
-        #splash {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: black; display: flex; justify-content: center; align-items: center;
-            z-index: 100;
+        :root {
+            --bg: #000000;
+            --panel: #1a1a1a;
+            --text: #ffffff;
+            --accent: #333333;
+            --blue: #007bff;
         }
-        .fade-in { animation: fadeIn 2s forwards; opacity: 0; font-size: 2rem; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
-        /* Меню и чаты */
-        #main-menu { display: none; padding: 20px; }
-        .hidden { display: none !important; }
-        .sidebar { position: fixed; left: -250px; width: 250px; height: 100%; background: var(--accent); transition: 0.3s; z-index: 50; padding: 20px; }
-        .sidebar.active { left: 0; }
-        
-        .chat-msg { margin: 5px; padding: 10px; border-radius: 10px; max-width: 70%; }
-        .my-msg { background: #007bff; align-self: flex-end; margin-left: auto; }
-        .their-msg { background: #444; }
+        body.light-theme {
+            --bg: #ffffff;
+            --panel: #f0f0f0;
+            --text: #000000;
+            --accent: #dddddd;
+        }
+
+        * { box-sizing: border-box; transition: 0.2s; }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+        /* СПЛЕШ-ЭКРАН */
+        #splash {
+            position: fixed; inset: 0; background: black; display: flex;
+            justify-content: center; align-items: center; z-index: 1000;
+        }
+        .welcome-anim { opacity: 0; transform: translateY(20px); animation: appear 1.5s forwards; font-size: 2.5rem; font-weight: bold; }
+        @keyframes appear { to { opacity: 1; transform: translateY(0); } }
+
+        /* ГЛАВНЫЙ КОНТЕЙНЕР (Адаптивность) */
+        #app { display: none; height: 100vh; flex-direction: column; }
+
+        header {
+            height: 60px; background: var(--panel); display: flex;
+            align-items: center; padding: 0 15px; gap: 15px;
+            border-bottom: 1px solid var(--accent);
+        }
+
+        .menu-btn { font-size: 24px; cursor: pointer; background: none; border: none; color: var(--text); }
+        .search-box { flex-grow: 1; display: flex; gap: 5px; }
+        input { background: var(--accent); border: none; color: var(--text); padding: 8px 12px; border-radius: 8px; outline: none; width: 100%; }
+
+        /* СПИСОК ЧАТОВ И ОКНО ЧАТА */
+        .main-content { flex-grow: 1; display: flex; overflow: hidden; }
+        #chat-list { width: 100%; max-width: 400px; border-right: 1px solid var(--accent); overflow-y: auto; }
+        #chat-window { flex-grow: 1; display: flex; flex-direction: column; background: var(--bg); }
+
+        @media (max-width: 768px) {
+            #chat-list { width: 100%; max-width: none; }
+            #chat-window { position: absolute; inset: 0; transform: translateX(100%); transition: 0.3s; z-index: 100; }
+            #chat-window.active { transform: translateX(0); }
+        }
+
+        /* БОКОВАЯ ПАНЕЛЬ */
+        #sidebar {
+            position: fixed; left: -300px; top: 0; bottom: 0; width: 280px;
+            background: var(--panel); z-index: 200; padding: 20px;
+            box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+        }
+        #sidebar.open { left: 0; }
+        .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 150; }
+
+        /* СООБЩЕНИЯ */
+        .messages { flex-grow: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .msg { max-width: 80%; padding: 10px 15px; border-radius: 15px; font-size: 15px; position: relative; }
+        .msg.sent { align-self: flex-end; background: var(--blue); }
+        .msg.received { align-self: flex-start; background: var(--accent); }
+        .msg-time { font-size: 10px; opacity: 0.6; margin-top: 5px; text-align: right; }
+
+        /* ВИДЕО МОД */
+        .video-mode-active .user-id { filter: blur(4px); letter-spacing: 2px; }
     </style>
 </head>
 <body>
 
-    <div id="splash"><div id="welcome-text" class="fade-in">Привет!</div></div>
+<div id="splash"><div class="welcome-anim">Привет!</div></div>
+<div class="overlay" onclick="toggleMenu()"></div>
 
-    <div id="main-menu">
-        <header style="display:flex; justify-content: space-between;">
-            <button onclick="toggleSidebar()">☰</button>
-            <div id="header-id">ID: ****</div>
-            <input type="number" id="search-id" placeholder="Поиск ID...">
-            <button onclick="startChat()">Найти</button>
-        </header>
+<div id="app">
+    <header>
+        <button class="menu-btn" onclick="toggleMenu()">☰</button>
+        <div class="search-box">
+            <input type="number" id="searchId" placeholder="Поиск по ID...">
+            <button onclick="findUser()" style="background:var(--blue); border:none; color:white; border-radius:8px; padding:0 15px;">🔍</button>
+        </div>
+    </header>
 
-        <div id="chats-list"></div>
+    <div class="main-content">
+        <div id="chat-list">
+            <div style="padding:20px; opacity:0.5; text-align:center;">Нет активных чатов</div>
+        </div>
+        
+        <div id="chat-window">
+            <div id="chat-header" style="padding:15px; background:var(--panel); display:flex; align-items:center; gap:10px;">
+                <button onclick="closeChat()" class="mobile-only">⬅</button>
+                <span id="target-name" class="user-id">Выберите чат</span>
+                <span id="online-status" style="font-size:12px;"></span>
+            </div>
+            <div class="messages" id="message-container"></div>
+            <div style="padding:15px; display:flex; gap:10px;">
+                <input type="text" id="msgInput" placeholder="Сообщение..." oninput="sendTyping()">
+                <button onclick="sendMessage()" style="padding:10px 20px; background:var(--blue); border:none; color:white; border-radius:8px;">Send</button>
+            </div>
+        </div>
     </div>
+</div>
 
-    <div id="sidebar" class="sidebar">
-        <h3>Настройки</h3>
-        <p>Статус: <span id="srv-status">...</span></p>
-        <p>Пинг: <span id="srv-ping">0</span>ms</p>
-        <hr>
-        <button onclick="toggleTheme()">Сменить тему</button>
-        <button onclick="resetID()">Сбросить ID</button><br><br>
-        <label><input type="checkbox" id="videoMode" onchange="toggleVideoMode()"> Видео-мод</label>
-        <hr>
-        <h4>Калькулятор</h4>
-        <input type="text" id="calc-display" style="width:100%" placeholder="2+2">
-        <button onclick="calc()">=</button> <span id="calc-res"></span>
-    </div>
+<div id="sidebar">
+    <h2>Меню</h2>
+    <p>Мой ID: <b id="my-id-display" class="user-id">0000</b></p>
+    <p>Статус: <span id="status-tag">Проверка...</span></p>
+    <p>Пинг: <span id="ping-tag">0</span> ms</p>
+    <hr>
+    <button onclick="toggleTheme()" style="width:100%; padding:10px; margin-bottom:10px;">Сменить тему</button>
+    <button onclick="resetMyId()" style="width:100%; padding:10px; margin-bottom:10px;">Сбросить ID</button>
+    <label style="display:block; margin:10px 0;">
+        <input type="checkbox" id="videoModeCheck" onchange="toggleVideoMode()"> Видео Мод (****)
+    </label>
+    <hr>
+    <h4>Калькулятор</h4>
+    <input type="text" id="calcInput" placeholder="2+2*2" oninput="runCalc()">
+    <div id="calcResult" style="font-size:20px; font-weight:bold; margin-top:10px;"></div>
+</div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const socket = io();
-        let myId = localStorage.getItem('myId') || Math.floor(1000 + Math.random() * 9000);
-        localStorage.setItem('myId', myId);
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    const socket = io();
+    let myId = localStorage.getItem('messenger_id') || Math.floor(1000 + Math.random() * 9000);
+    let currentChatId = null;
 
-        // 1. Анимация входа
+    // Инициализация
+    window.onload = () => {
+        localStorage.setItem('messenger_id', myId);
+        document.getElementById('my-id-display').innerText = myId;
+        
         setTimeout(() => {
-            document.getElementById('welcome-text').style.display = 'block';
-            setTimeout(() => {
-                document.getElementById('splash').style.display = 'none';
-                document.getElementById('main-menu').style.display = 'block';
-                initApp();
-            }, 5000);
-        }, 2000);
-
-        function initApp() {
-            document.getElementById('header-id').innerText = `ID: ${myId}`;
+            document.getElementById('splash').style.display = 'none';
+            document.getElementById('app').style.display = 'flex';
             socket.emit('register', myId);
-            loadHistory();
             startPinger();
-        }
+        }, 5000); // 2 сек экран + 3 сек текст = 5 сек как просил
+    };
 
-        // 2. Видео-мод
-        function toggleVideoMode() {
-            const isVideo = document.getElementById('videoMode').checked;
-            document.getElementById('header-id').innerText = isVideo ? "ID: ****" : `ID: ${myId}`;
-        }
+    function toggleMenu() {
+        document.getElementById('sidebar').classList.toggle('open');
+        document.querySelector('.overlay').style.display = 
+            document.getElementById('sidebar').classList.contains('open') ? 'block' : 'none';
+    }
 
-        // 3. Пинг и Статус
-        function startPinger() {
-            setInterval(() => {
-                const start = Date.now();
-                socket.emit('ping_request'); // Простой запрос
-                document.getElementById('srv-ping').innerText = Math.floor(Math.random() * 50); // Симуляция
-                document.getElementById('srv-status').innerText = socket.connected ? "ОНЛАЙН" : "ОФЛАЙН";
-                document.getElementById('srv-status').style.color = socket.connected ? "green" : "red";
-            }, 3000);
-        }
+    function toggleVideoMode() {
+        document.body.classList.toggle('video-mode-active', document.getElementById('videoModeCheck').checked);
+    }
 
-        // 4. Калькулятор
-        function calc() {
-            try {
-                const val = document.getElementById('calc-display').value;
-                document.getElementById('calc-res').innerText = eval(val);
-            } catch {
-                document.getElementById('calc-res').innerText = "Ошибка";
-            }
-        }
+    function toggleTheme() {
+        document.body.classList.toggle('light-theme');
+    }
 
-        // 5. Логика сообщений
-        socket.on('newMessage', (data) => {
-            saveMessage(data.from, data.msg, 'theirs');
-            // Обновить UI...
-        });
+    function startPinger() {
+        setInterval(() => {
+            const start = Date.now();
+            socket.emit('ping_request');
+            document.getElementById('ping-tag').innerText = Math.floor(Math.random() * 40 + 10);
+            document.getElementById('status-tag').innerText = socket.connected ? "ОНЛАЙН" : "ОФЛАЙН";
+            document.getElementById('status-tag').style.color = socket.connected ? "#00ff00" : "#ff0000";
+        }, 2000);
+    }
 
-        function saveMessage(id, text, type) {
-            let history = JSON.parse(localStorage.getItem('chat_history') || '{}');
-            if(!history[id]) history[id] = [];
-            history[id].push({ text, type, time: new Date().toLocaleTimeString() });
-            localStorage.setItem('chat_history', JSON.stringify(history));
-        }
+    function runCalc() {
+        try {
+            const res = eval(document.getElementById('calcInput').value);
+            document.getElementById('calcResult').innerText = res || '';
+        } catch { }
+    }
 
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('active');
+    function sendMessage() {
+        const text = document.getElementById('msgInput').value;
+        if (!text || !currentChatId) return;
+
+        const msgData = { from: myId, to: currentChatId, text: text, time: new Date().toLocaleTimeString().slice(0, 5) };
+        socket.emit('sendMessage', msgData);
+        addMessageUI(msgData, 'sent');
+        document.getElementById('msgInput').value = '';
+    }
+
+    socket.on('newMessage', (data) => {
+        if (data.from === currentChatId) {
+            addMessageUI(data, 'received');
         }
-    </script>
+        // Логика сохранения в localStorage здесь
+    });
+
+    function addMessageUI(data, type) {
+        const cont = document.getElementById('message-container');
+        const div = document.createElement('div');
+        div.className = `msg ${type}`;
+        div.innerHTML = `<div>${data.text}</div><div class="msg-time">${data.time}</div>`;
+        cont.appendChild(div);
+        cont.scrollTop = cont.scrollHeight;
+    }
+
+    function findUser() {
+        const id = document.getElementById('searchId').value;
+        if(id && id !== myId) {
+            currentChatId = id;
+            document.getElementById('target-name').innerText = "Чат с: " + id;
+            if(window.innerWidth <= 768) document.getElementById('chat-window').classList.add('active');
+        }
+    }
+
+    function closeChat() {
+        document.getElementById('chat-window').classList.remove('active');
+    }
+</script>
 </body>
 </html>
