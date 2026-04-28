@@ -3,211 +3,333 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Block Blast Online | Pro Edition</title>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <title>Block Blast Ultimate</title>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
-        :root {
-            --primary-bg: #0f0c29;
-            --glass: rgba(255, 255, 255, 0.1);
-            --border-glass: rgba(255, 255, 255, 0.2);
-            --text-color: #ffffff;
-        }
-
-        * { box-sizing: border-box; touch-action: manipulation; }
-
-        body {
-            margin: 0; padding: 0;
-            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            color: var(--text-color);
+        :root { --glass: rgba(255, 255, 255, 0.1); --border: rgba(255, 255, 255, 0.2); }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { 
+            margin: 0; padding: 0; min-height: 100vh; overflow: hidden;
+            background: #0f0c29; color: white; font-family: sans-serif;
             display: flex; justify-content: center; align-items: center;
-            min-height: 100vh; overflow: hidden;
         }
 
-        /* Анимированный фон "Радуга" на старте */
+        /* Rainbow Start */
         #splash {
-            position: fixed; inset: 0; z-index: 1000;
-            background: linear-gradient(45deg, #ff0000, #ff7300, #fffb00, #48ff00, #00ffd5, #002bff, #7a00ff, #ff00c8, #ff0000);
-            background-size: 400%;
+            position: fixed; inset: 0; z-index: 9999;
+            background: linear-gradient(45deg, red, orange, yellow, green, blue, purple);
+            background-size: 400%; animation: rainbow 5s linear infinite;
             display: flex; justify-content: center; align-items: center;
-            animation: rainbow_bg 10s linear infinite;
+        }
+        @keyframes rainbow { 0% {background-position: 0% 50%;} 100% {background-position: 400% 50%;} }
+        #splash h1 { font-size: 4rem; animation: zoom 2s ease-in-out; }
+        @keyframes zoom { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+        /* Main UI */
+        #app { 
+            width: 100%; max-width: 450px; height: 95vh; 
+            background: var(--glass); backdrop-filter: blur(20px);
+            border: 1px solid var(--border); border-radius: 30px;
+            display: none; flex-direction: column; padding: 20px;
         }
 
-        @keyframes rainbow_bg { 0% { background-position: 0% 50%; } 100% { background-position: 400% 50%; } }
+        .header { display: flex; justify-content: space-around; padding: 15px; background: rgba(0,0,0,0.4); border-radius: 20px; }
+        .elo-val { font-size: 24px; font-weight: bold; }
+        
+        /* Grid */
+        #grid { 
+            display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px;
+            width: 320px; height: 320px; background: rgba(255,255,255,0.05);
+            margin: 20px auto; padding: 5px; border-radius: 10px;
+        }
+        .cell { background: rgba(255,255,255,0.1); border-radius: 4px; aspect-ratio: 1; }
+        .cell.filled { background: #3498db; box-shadow: inset 0 0 10px white; }
+        .cell.preview { background: rgba(52, 152, 219, 0.4); }
 
-        #splash h1 {
-            font-size: 4rem; text-transform: uppercase; letter-spacing: 5px;
-            animation: welcome_anim 2s ease-out forwards;
+        /* Shapes */
+        #hand { display: flex; justify-content: space-around; height: 120px; margin-top: 20px; }
+        .shape { cursor: grab; transform: scale(0.7); }
+        .shape-row { display: flex; }
+        .s-cell { width: 30px; height: 30px; border-radius: 4px; }
+        .s-cell.on { background: #3498db; border: 1px solid rgba(255,255,255,0.5); }
+
+        /* Buttons */
+        .btn { 
+            width: 100%; padding: 15px; border-radius: 15px; border: none;
+            font-size: 18px; font-weight: bold; cursor: pointer; margin: 10px 0;
+        }
+        .btn-main { background: #2ecc71; color: white; }
+        .btn-surrender { background: #e74c3c; color: white; }
+
+        /* Chat */
+        #chat { flex-grow: 1; background: rgba(0,0,0,0.3); border-radius: 15px; padding: 10px; margin-top: 10px; display: flex; flex-direction: column; }
+        #messages { flex-grow: 1; overflow-y: auto; font-size: 14px; }
+        #chat input { background: transparent; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 10px; }
+
+        /* Search Overlay */
+        #search { 
+            position: absolute; inset: 0; background: rgba(0,0,0,0.9); 
+            display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100;
         }
 
-        @keyframes welcome_anim {
-            0% { opacity: 0; transform: translateY(30px) scale(0.8); filter: blur(10px); }
-            100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
-        }
-
-        /* Основной контейнер */
-        #app-container {
-            width: 100%; max-width: 500px; height: 90vh;
-            background: var(--glass);
-            backdrop-filter: blur(15px);
-            border: 1px solid var(--border-glass);
-            border-radius: 24px;
-            display: none; flex-direction: column;
-            padding: 20px; position: relative;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-        }
-
-        /* Шапка с ELO и LVL */
-        .header {
-            display: flex; justify-content: space-around;
-            background: rgba(0,0,0,0.3); padding: 15px; border-radius: 15px; margin-bottom: 20px;
-        }
-
-        .stat-box { text-align: center; }
-        .stat-label { font-size: 12px; opacity: 0.7; text-transform: uppercase; }
-        .stat-value { font-size: 20px; font-weight: 800; display: block; }
-
-        /* Цветовые схемы для уровней */
-        .lvl-1 { color: #2ecc71; text-shadow: 0 0 10px #2ecc71; }
-        .lvl-2 { color: #e74c3c; text-shadow: 0 0 10px #e74c3c; }
-        .lvl-3 { color: #9b59b6; text-shadow: 0 0 10px #9b59b6; }
-        .lvl-4 { color: #000000; text-shadow: 0 0 5px #fff; }
-
-        /* Игровое поле */
-        .game-area {
-            flex-grow: 1; display: flex; flex-direction: column; align-items: center;
-        }
-
-        #grid {
-            display: grid; grid-template-columns: repeat(8, 1fr);
-            gap: 4px; background: rgba(255,255,255,0.05);
-            padding: 5px; border-radius: 8px; width: 320px; height: 320px;
-        }
-
-        .cell {
-            background: rgba(255,255,255,0.1); border-radius: 4px;
-            aspect-ratio: 1/1; transition: background 0.2s;
-        }
-
-        .cell.filled { background: #3498db; box-shadow: inset 0 0 8px rgba(255,255,255,0.5); }
-        .cell.highlight { background: rgba(52, 152, 219, 0.4); }
-
-        /* Кнопки */
-        .btn {
-            background: #fff; color: #000; border: none;
-            padding: 18px 40px; border-radius: 15px;
-            font-size: 18px; font-weight: bold; cursor: pointer;
-            transition: 0.3s; width: 100%; margin: 10px 0;
-        }
-        .btn:active { transform: scale(0.95); }
-        .btn-play { background: linear-gradient(90deg, #00c6ff, #0072ff); color: white; }
-
-        /* Чат */
-        .chat-section {
-            background: rgba(0,0,0,0.2); border-radius: 15px; padding: 10px;
-            height: 150px; display: flex; flex-direction: column;
-        }
-        #chat-messages { flex-grow: 1; overflow-y: auto; font-size: 14px; margin-bottom: 5px; }
-        .chat-input {
-            background: rgba(255,255,255,0.1); border: 1px solid var(--border-glass);
-            color: white; padding: 8px; border-radius: 8px; outline: none;
-        }
-
-        /* Модалки выбора режима */
-        #mode-selection {
-            position: absolute; inset: 0; background: rgba(0,0,0,0.8);
-            border-radius: 24px; display: none;
-            flex-direction: column; justify-content: center; align-items: center; padding: 20px;
-            z-index: 10;
-        }
-
-        /* Анимация поиска */
-        #matchmaking {
-            position: absolute; inset: 0; background: #0f0c29; border-radius: 24px;
-            display: none; flex-direction: column; justify-content: center; align-items: center;
-        }
-        .loader {
-            width: 80px; height: 80px; border: 5px solid #3498db;
-            border-top-color: transparent; border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* Фигуры внизу */
-        #shapes-bench {
-            display: flex; justify-content: space-around; width: 100%;
-            height: 100px; margin-top: 15px;
-        }
-        .shape-preview {
-            transform: scale(0.6); transform-origin: top;
-            cursor: grab;
-        }
-
-        @media (max-width: 400px) {
-            #grid { width: 280px; height: 280px; }
-            #app-container { height: 100vh; border-radius: 0; }
-        }
+        /* ELO Colors */
+        .green { color: #2ecc71; } .red { color: #e74c3c; } .purple { color: #9b59b6; } .black { color: #111; text-shadow: 0 0 5px white; }
     </style>
 </head>
 <body>
 
-    <div id="splash"><h1>Привет!</h1></div>
+<div id="splash"><h1>Привет!</h1></div>
 
-    <div id="app-container">
-        <div class="header">
-            <div class="stat-box">
-                <span class="stat-label">Ваш ELO</span>
-                <span class="stat-value" id="elo-val">0</span>
-            </div>
-            <div class="stat-box">
-                <span class="stat-label">Уровень</span>
-                <span class="stat-value" id="lvl-val">1</span>
-            </div>
-        </div>
+<div id="app">
+    <div class="header">
+        <div>ELO: <span id="elo" class="elo-val">0</span></div>
+        <div>LVL: <span id="lvl" class="elo-val">1</span></div>
+    </div>
 
-        <div id="main-menu" style="display: flex; flex-direction: column; flex-grow: 1;">
-            <div style="flex-grow: 1; display: flex; align-items: center; justify-content: center;">
-                <h2 style="font-size: 30px; text-align: center;">BLOCK BLAST<br><span style="font-weight: 200; font-size: 16px;">ONLINE VERSION</span></h2>
-            </div>
-            
-            <button class="btn btn-play" id="open-modes-btn">ИГРАТЬ</button>
-
-            <div class="chat-section">
-                <div id="chat-messages"></div>
-                <input type="text" class="chat-input" id="chat-in" placeholder="Написать в глобальный чат...">
-            </div>
-        </div>
-
-        <div id="mode-selection">
-            <h3 style="margin-bottom: 30px;">Выберите режим</h3>
-            <button class="btn" onclick="startGame('offline')">ОФФЛАЙН</button>
-            <button class="btn" onclick="startGame('online')" style="background: #f1c40f;">ОНЛАЙН</button>
-            <button class="btn" onclick="closeModes()" style="background: none; color: white; border: 1px solid white;">НАЗАД</button>
-        </div>
-
-        <div id="game-screen" style="display: none; flex-direction: column; align-items: center;">
-            <div id="game-task" style="margin-bottom: 10px; font-weight: bold; color: #f1c40f;">Цель: <span id="target-score">0</span></div>
-            <div id="current-score" style="font-size: 24px; margin-bottom: 10px;">0</div>
-            
-            <div id="grid"></div>
-
-            <div id="shapes-bench"></div>
-
-            <button class="btn" onclick="surrender()" style="background: #e74c3c; color: white; margin-top: 20px;">СДАТЬСЯ</button>
-        </div>
-
-        <div id="matchmaking">
-            <div class="loader"></div>
-            <p id="search-status" style="margin-top: 20px;">Поиск соперника...</p>
+    <div id="menu-screen">
+        <div style="height: 200px; display: flex; align-items: center; justify-content: center; font-size: 40px; font-weight: 900;">BLOCK BLAST</div>
+        <button class="btn btn-main" onclick="showModes()">ИГРАТЬ</button>
+        <div id="chat">
+            <div id="messages"></div>
+            <input type="text" id="msg-in" placeholder="Сообщение всем...">
         </div>
     </div>
 
-    <div id="nick-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 2000; flex-direction: column; justify-content: center; align-items: center;">
-        <h2>Как тебя зовут?</h2>
-        <input type="text" id="nick-field" style="padding: 15px; border-radius: 10px; border: none; margin: 20px; width: 250px;">
-        <button class="btn btn-play" style="width: 250px;" id="save-nick-btn">НАЧАТЬ</button>
+    <div id="game-screen" style="display:none;">
+        <div id="online-stats" style="display:none; justify-content: space-between; padding: 5px;">
+            <span>Вы: <b id="my-score">0</b></span>
+            <span id="timer">05:00</span>
+            <span>Враг: <b id="opp-score">0</b></span>
+        </div>
+        <div id="offline-task" style="text-align: center; color: #f1c40f; margin: 5px;">Цель: <span id="target">0</span></div>
+        <div id="grid"></div>
+        <div id="hand"></div>
+        <button class="btn btn-surrender" onclick="backToMenu()">СДАТЬСЯ</button>
     </div>
+</div>
 
-    <script src="script.js"></script>
+<div id="search">
+    <div style="width:50px; height:50px; border:5px solid #3498db; border-top-color:transparent; border-radius:50%; animation: rainbow 1s linear infinite;"></div>
+    <p>Ищем достойного соперника...</p>
+</div>
+
+<script>
+    const socket = io();
+    let myData = {
+        nick: localStorage.getItem('bb_nick') || '',
+        elo: parseInt(localStorage.getItem('bb_elo')) || 0,
+        lvl: 1
+    };
+
+    // Splash Logic
+    setTimeout(() => {
+        document.getElementById('splash').style.display = 'none';
+        document.getElementById('app').style.display = 'flex';
+        if(!myData.nick) {
+            myData.nick = prompt("Твой никнейм:") || "Игрок";
+            localStorage.setItem('bb_nick', myData.nick);
+        }
+        updateUI();
+    }, 3000);
+
+    function updateUI() {
+        myData.lvl = Math.floor(myData.elo / 10) + 1;
+        const eEl = document.getElementById('elo');
+        const lEl = document.getElementById('lvl');
+        eEl.innerText = myData.elo;
+        lEl.innerText = myData.lvl;
+        
+        lEl.className = 'elo-val';
+        if(myData.lvl > 500) lEl.classList.add('black');
+        else if(myData.lvl > 150) lEl.classList.add('purple');
+        else if(myData.lvl > 50) lEl.classList.add('red');
+        else lEl.classList.add('green');
+    }
+
+    // --- CHAT LOGIC ---
+    const msgIn = document.getElementById('msg-in');
+    msgIn.onkeypress = (e) => {
+        if(e.key === 'Enter' && msgIn.value.trim()){
+            socket.emit('send_msg', { nick: myData.nick, text: msgIn.value });
+            msgIn.value = '';
+        }
+    };
+
+    socket.on('broadcast_msg', (data) => {
+        const box = document.getElementById('messages');
+        const div = document.createElement('div');
+        div.innerHTML = `<b>${data.nick}:</b> ${data.text}`;
+        box.appendChild(div);
+        if(box.childNodes.length > 5) box.removeChild(box.firstChild);
+        box.scrollTop = box.scrollHeight;
+    });
+
+    // --- GAME MECHANICS ---
+    let board = Array(8).fill().map(() => Array(8).fill(0));
+    let score = 0;
+    let isOnline = false;
+    let currentRoom = '';
+
+    function showModes() {
+        const m = confirm("ОК - Онлайн, Отмена - Оффлайн");
+        if(m) startMatchmaking(); else startOffline();
+    }
+
+    function startOffline() {
+        document.getElementById('menu-screen').style.display = 'none';
+        document.getElementById('game-screen').style.display = 'flex';
+        document.getElementById('offline-task').style.display = 'block';
+        document.getElementById('online-stats').style.display = 'none';
+        
+        let target = 500 + (myData.lvl * 100);
+        document.getElementById('target').innerText = target;
+        resetGame();
+    }
+
+    function startMatchmaking() {
+        document.getElementById('search').style.display = 'flex';
+        socket.emit('find_match', { nick: myData.nick, elo: myData.elo });
+    }
+
+    socket.on('match_start', (data) => {
+        document.getElementById('search').style.display = 'none';
+        document.getElementById('menu-screen').style.display = 'none';
+        document.getElementById('game-screen').style.display = 'flex';
+        document.getElementById('offline-task').style.display = 'none';
+        document.getElementById('online-stats').style.display = 'flex';
+        
+        isOnline = true;
+        currentRoom = data.room;
+        resetGame();
+        startTimer();
+    });
+
+    function resetGame() {
+        board = Array(8).fill().map(() => Array(8).fill(0));
+        score = 0;
+        updateBoard();
+        spawnShapes();
+    }
+
+    function updateBoard() {
+        const grid = document.getElementById('grid');
+        grid.innerHTML = '';
+        for(let r=0; r<8; r++) {
+            for(let c=0; c<8; c++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell' + (board[r][c] ? ' filled' : '');
+                grid.appendChild(cell);
+            }
+        }
+        if(isOnline) {
+            document.getElementById('my-score').innerText = score;
+            socket.emit('update_score', { room: currentRoom, score: score });
+        }
+    }
+
+    socket.on('opp_score', (s) => {
+        document.getElementById('opp-score').innerText = s;
+    });
+
+    // --- SHAPES ---
+    const SHAPES = [
+        [[1,1],[1,1]], [[1,1,1]], [[1],[1],[1]], [[1,0],[1,1]], [[1]]
+    ];
+
+    function spawnShapes() {
+        const hand = document.getElementById('hand');
+        hand.innerHTML = '';
+        for(let i=0; i<3; i++) {
+            const shape = SHAPES[Math.floor(Math.random()*SHAPES.length)];
+            const div = document.createElement('div');
+            div.className = 'shape';
+            div.draggable = true;
+            shape.forEach(row => {
+                const rDiv = document.createElement('div');
+                rDiv.className = 'shape-row';
+                row.forEach(c => {
+                    const cDiv = document.createElement('div');
+                    cDiv.className = 's-cell' + (c ? ' on' : '');
+                    rDiv.appendChild(cDiv);
+                });
+                div.appendChild(rDiv);
+            });
+            
+            div.ondragend = (e) => {
+                const rect = document.getElementById('grid').getBoundingClientRect();
+                const x = Math.floor((e.clientX - rect.left) / (rect.width/8));
+                const y = Math.floor((e.clientY - rect.top) / (rect.height/8));
+                if(canPlace(shape, y, x)) {
+                    place(shape, y, x);
+                    div.style.visibility = 'hidden';
+                    if([...hand.childNodes].every(n => n.style.visibility === 'hidden')) spawnShapes();
+                }
+            };
+            hand.appendChild(div);
+        }
+    }
+
+    function canPlace(shape, row, col) {
+        for(let r=0; r<shape.length; r++) {
+            for(let c=0; c<shape[r].length; c++) {
+                if(shape[r][c]) {
+                    if(row+r < 0 || row+r >= 8 || col+c < 0 || col+c >= 8 || board[row+r][col+c]) return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    function place(shape, row, col) {
+        for(let r=0; r<shape.length; r++) {
+            for(let c=0; c<shape[r].length; c++) {
+                if(shape[r][c]) board[row+r][col+c] = 1;
+            }
+        }
+        clearLines();
+        updateBoard();
+    }
+
+    function clearLines() {
+        let toClearR = [], toClearC = [];
+        for(let i=0; i<8; i++) {
+            if(board[i].every(v => v === 1)) toClearR.push(i);
+            if(board.map(r => r[i]).every(v => v === 1)) toClearC.push(i);
+        }
+        toClearR.forEach(r => board[r].fill(0));
+        toClearC.forEach(c => board.forEach(r => r[c] = 0));
+        score += (toClearR.length + toClearC.length) * 100;
+        
+        // Win Condition Offline
+        if(!isOnline && score >= parseInt(document.getElementById('target').innerText)) {
+            alert("Победа! +20 ELO");
+            myData.elo += 20;
+            saveAndExit();
+        }
+    }
+
+    function saveAndExit() {
+        localStorage.setItem('bb_elo', myData.elo);
+        location.reload();
+    }
+
+    function backToMenu() { location.reload(); }
+
+    function startTimer() {
+        let t = 300;
+        const int = setInterval(() => {
+            t--;
+            let m = Math.floor(t/60), s = t%60;
+            document.getElementById('timer').innerText = `${m}:${s<10?'0':''}${s}`;
+            if(t <= 0) {
+                clearInterval(int);
+                const oppS = parseInt(document.getElementById('opp-score').innerText);
+                if(score > oppS) { alert("Вы выиграли матч! +50 ELO"); myData.elo += 50; }
+                else { alert("Вы проиграли матч! -10 ELO"); myData.elo = Math.max(0, myData.elo - 10); }
+                saveAndExit();
+            }
+        }, 1000);
+    }
+</script>
 </body>
 </html>
