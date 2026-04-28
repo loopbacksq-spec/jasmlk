@@ -2,284 +2,153 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Discord Clone v1</title>
+    <title>Block Blast Online</title>
     <style>
         :root {
-            --bg-dark: #313338;
-            --bg-sidebar: #2b2d31;
-            --bg-guilds: #1e1f22;
-            --text-main: #dbdee1;
-            --discord-purple: #5865f2;
-            --danger: #f23f42;
+            --bg-rainbow: linear-gradient(45deg, #ff9a9e, #fad0c4, #ffecd2, #a1c4fd, #c2e9fb);
+        }
+        body, html { 
+            margin: 0; padding: 0; overflow: hidden; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-rainbow);
+            background-size: 400% 400%;
+            animation: rainbow 15s ease infinite;
+        }
+        @keyframes rainbow { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+
+        /* Splash Screen */
+        #splash {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            background: inherit; z-index: 100;
+        }
+        #splash h1 {
+            font-size: 5rem; color: white; text-shadow: 2px 2px 10px rgba(0,0,0,0.2);
+            opacity: 0; transform: scale(0.5); animation: appear 1.5s forwards;
+        }
+        @keyframes appear { to { opacity: 1; transform: scale(1); } }
+
+        /* Меню */
+        #menu { display: none; text-align: center; padding: 20px; }
+        .elo-info { font-size: 24px; font-weight: bold; margin-bottom: 20px; }
+        
+        /* Цвета уровней */
+        .lvl-green { color: #2ecc71; }
+        .lvl-red { color: #e74c3c; }
+        .lvl-purple { color: #9b59b6; }
+        .lvl-black { color: #2c3e50; }
+
+        .btn-play {
+            padding: 15px 50px; font-size: 24px; cursor: pointer;
+            background: #fff; border: none; border-radius: 50px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); transition: 0.3s;
+        }
+        .btn-play:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,0.15); }
+
+        /* Чат */
+        #chat-box {
+            width: 300px; height: 150px; margin: 20px auto;
+            background: rgba(255,255,255,0.7); border-radius: 10px;
+            overflow-y: auto; padding: 10px; text-align: left; font-size: 14px;
         }
 
-        * { box-sizing: border-box; font-family: 'gg sans', 'Noto Sans', sans-serif; }
-        body, html { margin: 0; padding: 0; height: 100svh; background: var(--bg-dark); color: var(--text-main); overflow: hidden; }
-
-        /* СПЛЕШ */
-        #splash { position: fixed; inset: 0; background: #000; display: flex; justify-content: center; align-items: center; z-index: 2000; }
-
-        /* ОСНОВНОЙ ЛЕЙАУТ */
-        #app { display: none; height: 100%; display: flex; }
-
-        /* Панель серверов (Guilds) */
-        .guilds-bar { width: 72px; background: var(--bg-guilds); display: flex; flex-direction: column; align-items: center; padding-top: 12px; gap: 8px; flex-shrink: 0; }
-        .guild-icon { width: 48px; height: 48px; background: var(--bg-dark); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s; position: relative; }
-        .guild-icon:hover { border-radius: 15px; background: var(--discord-purple); }
-        .guild-icon.active::before { content: ''; position: absolute; left: -12px; width: 4px; height: 40px; background: #fff; border-radius: 0 4px 4px 0; }
-
-        /* Список ЛС (Sidebar) */
-        .sidebar { width: 240px; background: var(--bg-sidebar); display: flex; flex-direction: column; flex-shrink: 0; }
-        .search-area { padding: 15px; border-bottom: 1px solid #262729; }
-        .dm-list { flex: 1; overflow-y: auto; padding: 8px; }
-        .dm-item { padding: 8px; border-radius: 4px; display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 2px; }
-        .dm-item:hover { background: #35373c; }
-        .dm-item.active { background: #3f4147; color: #fff; }
-
-        /* Окно чата */
-        .chat-container { flex: 1; display: flex; flex-direction: column; position: relative; }
-        .chat-header { height: 48px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #262729; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        .messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 15px; }
-        .input-area { padding: 16px; }
-        .input-wrapper { background: #383a40; border-radius: 8px; padding: 10px; display: flex; gap: 10px; }
-        .input-wrapper input { background: none; border: none; color: #fff; flex: 1; outline: none; font-size: 16px; }
-
-        /* Окно звонка */
-        #call-overlay { 
-            position: absolute; top: 10px; right: 10px; width: 200px; background: #1e1f22; 
-            border-radius: 12px; padding: 15px; display: none; flex-direction: column; align-items: center;
-            box-shadow: 0 8px 16px rgba(0,0,0,0.3); border: 1px solid var(--discord-purple); z-index: 100;
+        /* Игровое поле */
+        #game-container { display: none; position: relative; }
+        #grid { 
+            display: grid; grid-template-columns: repeat(8, 40px); 
+            grid-template-rows: repeat(8, 40px); gap: 2px; 
+            background: #bdc3c7; border: 5px solid #7f8c8d; margin: 20px auto;
         }
-        .call-controls { display: flex; gap: 10px; margin-top: 10px; }
-        .btn-call { padding: 8px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-        .btn-end { background: var(--danger); color: #fff; }
-        .btn-mute { background: #4e5058; color: #fff; }
-        .btn-mute.active { background: #fff; color: #000; }
-
-        /* Мобильная адаптивность */
-        @media (max-width: 768px) {
-            .sidebar { width: 0; overflow: hidden; position: absolute; z-index: 50; height: 100%; transition: 0.3s; }
-            .sidebar.open { width: 240px; }
-        }
+        .cell { width: 40px; height: 40px; background: #ecf0f1; }
+        .cell.filled { background: #3498db; box-shadow: inset 0 0 5px rgba(0,0,0,0.2); }
     </style>
 </head>
 <body>
 
-<div id="splash"><div class="welcome-anim">Привет!</div></div>
+    <div id="splash"><h1>Привет!</h1></div>
 
-<div id="app">
-    <div class="guilds-bar">
-        <div class="guild-icon active" onclick="goDMs()">💬</div>
-        <div style="width: 32px; height: 2px; background: #35373c; margin: 4px 0;"></div>
-        <div class="guild-icon" onclick="goWallet()">💰</div>
-        <div class="guild-icon" onclick="goRoulette()">🎰</div>
+    <div id="nickname-screen" style="display:none; text-align:center; margin-top:20vh;">
+        <h2>Введите ваш никнейм</h2>
+        <input type="text" id="nick-input" maxlength="15">
+        <button onclick="saveNickname()">Войти</button>
     </div>
 
-    <div class="sidebar" id="sidebar">
-        <div class="search-area">
-            <input type="number" id="searchId" placeholder="Найти ID..." style="width:100%; font-size:12px;">
-            <button onclick="findUser()" style="margin-top:5px; width:100%; background:var(--discord-purple); color:#fff; border:none; padding:5px; border-radius:4px; cursor:pointer;">Найти</button>
+    <div id="menu">
+        <div class="elo-info">
+            ELO: <span id="elo-display">0</span> | 
+            LVL: <span id="lvl-display" class="lvl-green">1</span>
         </div>
-        <div class="dm-list" id="dm-list"></div>
-        <div style="padding:10px; background:#232428; font-size:12px;">
-            <div>Мой ID: <b id="my-id">0000</b></div>
-            <div id="ping-info" style="opacity:0.5">Пинг: 0мс</div>
-        </div>
+        <button class="btn-play" onclick="showModes()">ИГРАТЬ</button>
+        <div id="chat-box"></div>
+        <input type="text" id="chat-input" placeholder="Сообщение..." onkeypress="sendMsg(event)">
     </div>
 
-    <div class="chat-container">
-        <div id="call-overlay">
-            <div id="call-status" style="font-size:12px; margin-bottom:5px;">Звонок...</div>
-            <b id="call-target-id">ID: ----</b>
-            <div class="call-controls">
-                <button class="btn-call btn-mute" id="mute-btn" onclick="toggleMute()">🎤</button>
-                <button class="btn-call btn-end" onclick="endCall()">📞</button>
-            </div>
-        </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let elo = localStorage.getItem('elo') ? parseInt(localStorage.getItem('elo')) : 0;
+        let nickname = localStorage.getItem('nickname');
 
-        <header class="chat-header">
-            <div style="display:flex; align-items:center; gap:10px;">
-                <span style="color:#80848e; font-size:20px;">@</span>
-                <b id="chat-title">Выберите друга</b>
-            </div>
-            <div style="display:flex; gap:15px; align-items:center;">
-                <button onclick="startCall()" style="background:none; border:none; font-size:20px; cursor:pointer; color:#b5bac1;">📞</button>
-                <button onclick="deleteChat()" style="background:none; border:none; color:var(--danger); font-size:12px; cursor:pointer;">УДАЛИТЬ ЧАТ</button>
-            </div>
-        </header>
-
-        <div class="messages" id="msg-cont"></div>
-
-        <div class="input-area">
-            <div class="input-wrapper">
-                <input type="text" id="msgInput" placeholder="Написать сообщение..." onkeypress="handleKey(event)">
-            </div>
-        </div>
-    </div>
-</div>
-
-<audio id="ringtone" src="https://assets.mixkit.co/active_storage/sfx/1359/1359-preview.mp3" loop></audio>
-<audio id="msg-sound" src="https://assets.mixkit.co/active_storage/sfx/2354/2354-preview.mp3"></audio>
-
-<script src="/socket.io/socket.io.js"></script>
-<script>
-    const socket = io();
-    let myId = localStorage.getItem('discord_id') || Math.floor(1000 + Math.random() * 9000).toString();
-    let currentTarget = null;
-    let chats = JSON.parse(localStorage.getItem('discord_chats') || '{}');
-    let localStream;
-    let peerConnection;
-
-    window.onload = () => {
-        localStorage.setItem('discord_id', myId);
-        document.getElementById('my-id').innerText = myId;
-        
+        // 1. Splash Screen Logic
         setTimeout(() => {
             document.getElementById('splash').style.display = 'none';
-            document.getElementById('app').style.display = 'flex';
-            socket.emit('register', myId);
-            renderDMList();
-            startPinger();
-        }, 5000);
-    };
+            if (!nickname) {
+                document.getElementById('nickname-screen').style.display = 'block';
+            } else {
+                showMenu();
+            }
+        }, 4500);
 
-    // --- ЛОГИКА ЧАТА ---
-    function findUser() {
-        const id = document.getElementById('searchId').value.trim();
-        if(!id || id === myId) return;
-        socket.emit('checkUser', id, (exists) => {
-            if(exists) {
-                if(!chats[id]) chats[id] = [];
-                openChat(id);
-                renderDMList();
-            } else alert("Пользователь не найден");
-        });
-    }
-
-    function openChat(id) {
-        currentTarget = id;
-        document.getElementById('chat-title').innerText = id;
-        document.getElementById('msg-cont').innerHTML = '';
-        chats[id].forEach(m => addMsgUI(m.text, m.from === myId ? 'sent' : 'received'));
-        renderDMList();
-    }
-
-    function addMsgUI(text, type) {
-        const cont = document.getElementById('msg-cont');
-        const div = document.createElement('div');
-        div.style = `padding: 5px 10px; border-radius: 4px; ${type === 'sent' ? 'background: rgba(88,101,242,0.1)' : ''}`;
-        div.innerHTML = `<b style="color:${type==='sent'?'#5865f2':'#fff'}">${type==='sent'?'Вы':currentTarget}:</b> <span style="margin-left:8px">${text}</span>`;
-        cont.appendChild(div);
-        cont.scrollTop = cont.scrollHeight;
-    }
-
-    function handleKey(e) { if(e.key === 'Enter') sendMsg(); }
-
-    function sendMsg() {
-        const input = document.getElementById('msgInput');
-        if(!input.value || !currentTarget) return;
-        const msg = { from: myId, to: currentTarget, text: input.value };
-        socket.emit('sendMessage', msg);
-        chats[currentTarget].push(msg);
-        addMsgUI(input.value, 'sent');
-        input.value = '';
-        saveChats();
-    }
-
-    socket.on('newMessage', (data) => {
-        if(!chats[data.from]) chats[data.from] = [];
-        chats[data.from].push(data);
-        saveChats();
-        document.getElementById('msg-sound').play();
-        if(currentTarget === data.from) addMsgUI(data.text, 'received');
-        renderDMList();
-    });
-
-    function renderDMList() {
-        const cont = document.getElementById('dm-list');
-        cont.innerHTML = '';
-        Object.keys(chats).forEach(id => {
-            const div = document.createElement('div');
-            div.className = `dm-item ${currentTarget === id ? 'active' : ''}`;
-            div.innerHTML = `<div style="width:32px; height:32px; background:#5865f2; border-radius:50%; display:flex; align-items:center; justify-content:center;">${id[0]}</div> <b>${id}</b>`;
-            div.onclick = () => openChat(id);
-            cont.appendChild(div);
-        });
-    }
-
-    // --- ЛОГИКА ЗВОНКА (WebRTC эмуляция сигналов через сокеты) ---
-    async function startCall() {
-        if(!currentTarget) return;
-        document.getElementById('call-overlay').style.display = 'flex';
-        document.getElementById('call-target-id').innerText = "ID: " + currentTarget;
-        document.getElementById('call-status').innerText = "Исходящий звонок...";
-        document.getElementById('ringtone').play();
-        
-        socket.emit('callUser', { userToCall: currentTarget, from: myId });
-
-        // Захват микрофона
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    }
-
-    socket.on('incomingCall', (data) => {
-        const accept = confirm(`Входящий звонок от ID ${data.from}. Принять?`);
-        if(accept) {
-            document.getElementById('call-overlay').style.display = 'flex';
-            document.getElementById('call-target-id').innerText = "ID: " + data.from;
-            document.getElementById('call-status').innerText = "В разговоре";
-            socket.emit('acceptCall', { to: data.from });
-            startAudioStream();
-        } else {
-            socket.emit('endCall', { to: data.from });
+        function saveNickname() {
+            const val = document.getElementById('nick-input').value;
+            if(val) {
+                localStorage.setItem('nickname', val);
+                nickname = val;
+                document.getElementById('nickname-screen').style.display = 'none';
+                showMenu();
+            }
         }
-    });
 
-    socket.on('callAccepted', () => {
-        document.getElementById('ringtone').pause();
-        document.getElementById('call-status').innerText = "В разговоре";
-        startAudioStream();
-    });
+        function showMenu() {
+            document.getElementById('menu').style.display = 'block';
+            updateStats();
+            loadLocalChat();
+        }
 
-    async function startAudioStream() {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // В реальном WebRTC тут создается PeerConnection, 
-        // но для бесплатного Render достаточно показать интерфейс работы
-    }
+        function updateStats() {
+            const eloDisp = document.getElementById('elo-display');
+            const lvlDisp = document.getElementById('lvl-display');
+            eloDisp.innerText = elo;
+            
+            let lvl = Math.floor(elo / 10) + 1; // Простая логика уровня
+            lvlDisp.innerText = lvl;
 
-    function endCall() {
-        if(localStream) localStream.getTracks().forEach(t => t.stop());
-        document.getElementById('call-overlay').style.display = 'none';
-        document.getElementById('ringtone').pause();
-        socket.emit('endCall', { to: currentTarget });
-    }
+            lvlDisp.className = '';
+            if (lvl <= 50) lvlDisp.classList.add('lvl-green');
+            else if (lvl <= 150) lvlDisp.classList.add('lvl-red');
+            else if (lvl <= 500) lvlDisp.classList.add('lvl-purple');
+            else lvlDisp.classList.add('lvl-black');
+        }
 
-    socket.on('callEnded', () => {
-        alert("Звонок завершен");
-        endCall();
-    });
+        // ЧАТ (Локальный на 5 сообщений)
+        function loadLocalChat() {
+            const messages = JSON.parse(localStorage.getItem('chat_history') || "[]");
+            const box = document.getElementById('chat-box');
+            box.innerHTML = messages.map(m => `<div><b>${m.user}:</b> ${m.text}</div>`).join('');
+        }
 
-    function toggleMute() {
-        const btn = document.getElementById('mute-btn');
-        const enabled = localStream.getAudioTracks()[0].enabled;
-        localStream.getAudioTracks()[0].enabled = !enabled;
-        btn.classList.toggle('active');
-        btn.innerText = enabled ? "🔇" : "🎤";
-    }
-
-    // --- ФУНКЦИИ ---
-    function startPinger() {
-        setInterval(() => {
-            const s = Date.now();
-            socket.emit('heartbeat');
-            socket.once('heartbeat_reply', () => {
-                document.getElementById('ping-info').innerText = `Пинг: ${Date.now()-s}мс`;
-            });
-        }, 3000);
-    }
-
-    function saveChats() { localStorage.setItem('discord_chats', JSON.stringify(chats)); }
-    function deleteChat() { if(confirm("Удалить?")) { delete chats[currentTarget]; saveChats(); location.reload(); } }
-</script>
+        function sendMsg(e) {
+            if(e.key === 'Enter') {
+                const input = document.getElementById('chat-input');
+                let messages = JSON.parse(localStorage.getItem('chat_history') || "[]");
+                messages.push({user: nickname, text: input.value});
+                if(messages.length > 5) messages.shift();
+                localStorage.setItem('chat_history', JSON.stringify(messages));
+                input.value = '';
+                loadLocalChat();
+            }
+        }
+        
+        // Логика игры (Block Blast) будет инициализироваться здесь...
+    </script>
 </body>
 </html>
